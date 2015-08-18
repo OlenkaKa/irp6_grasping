@@ -1,5 +1,15 @@
 #include <ros/ros.h>
 #include <object_recognition_msgs/RecognizedObject.h>
+#include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+
+//#include <tf_conversions/transform_datatypes.h>
+
+// List of recognized objects.
+//std::vector<> estimated_objects;
+
+// TF listener.
+tf::TransformListener* listener;
 
 
 /**
@@ -7,53 +17,56 @@
  */
 void estimationCallback(const object_recognition_msgs::RecognizedObject& object)
 {
-  ROS_INFO("I heard: [%s]", object.type.key.c_str());
+	ROS_INFO("I heard: [%s]", object.type.key.c_str());
+
+
+	std::string parent_frame_id = "/tl_base";
+
+	ros::Time now = ros::Time::now();
+
+	ROS_INFO("Waiting for transform from %s to %s", parent_frame_id.c_str(), object.pose.header.frame_id.c_str());
+
+	try{
+		// Get sensor-camera transformation.
+		tf::StampedTransform world_sensor_tf;
+		listener->lookupTransform(parent_frame_id, object.pose.header.frame_id, ros::Time(0), world_sensor_tf);
+		ROS_INFO("Got it!");
+
+		// Get object pose in sensor frame.
+		tf::Transform sensor_object_tf;
+		tf::poseMsgToTF (object.pose.pose.pose , sensor_object_tf);
+
+		// Compute pose in original (kinect/camera) reference frame.
+		tf::Transform world_object_tf = world_sensor_tf * sensor_object_tf;
+
+		ROS_INFO("Broadcasting transform from %s to %s", parent_frame_id.c_str(), object.type.key.c_str());
+
+		// Broadcaster.
+		static tf::TransformBroadcaster br;
+		br.sendTransform(tf::StampedTransform(world_object_tf, ros::Time::now(), parent_frame_id, object.type.key));
+	} catch (tf::TransformException &ex) {
+		ROS_ERROR("%s",ex.what());
+	}//: catch
+
+
 }
 
 int main(int argc, char **argv)
 {
-  /**
-   * The ros::init() function needs to see argc and argv so that it can perform
-   * any ROS arguments and name remapping that were provided at the command line.
-   * For programmatic remappings you can use a different version of init() which takes
-   * remappings directly, but for most command-line programs, passing argc and argv is
-   * the easiest way to do it.  The third argument to init() is the name of the node.
-   *
-   * You must call one of the versions of ros::init() before using any other
-   * part of the ROS system.
-   */
-  ros::init(argc, argv, "recognized_object_pose_estimation");
+	// Initialize node.
+	ros::init(argc, argv, "recognized_object_pose_estimation");
 
-  /**
-   * NodeHandle is the main access point to communications with the ROS system.
-   * The first NodeHandle constructed will fully initialize this node, and the last
-   * NodeHandle destructed will close down the node.
-   */
-  ros::NodeHandle n;
+	// Handle to communication ports.
+	ros::NodeHandle node;
 
-  /**
-   * The subscribe() call is how you tell ROS that you want to receive messages
-   * on a given topic.  This invokes a call to the ROS
-   * master node, which keeps a registry of who is publishing and who
-   * is subscribing.  Messages are passed to a callback function, here
-   * called chatterCallback.  subscribe() returns a Subscriber object that you
-   * must hold on to until you want to unsubscribe.  When all copies of the Subscriber
-   * object go out of scope, this callback will automatically be unsubscribed from
-   * this topic.
-   *
-   * The second parameter to the subscribe() function is the size of the message
-   * queue.  If messages are arriving faster than they are being processed, this
-   * is the number of messages that will be buffered up before beginning to throw
-   * away the oldest ones.
-   */
-  ros::Subscriber sub = n.subscribe("RecognizedObjects", 1000, estimationCallback);
+	// Create subscriber to topic containing recognized objects.
+	ros::Subscriber sub = node.subscribe("RecognizedObjects", 1000, estimationCallback);
 
-  /**
-   * ros::spin() will enter a loop, pumping callbacks.  With this version, all
-   * callbacks will be called from within this thread (the main one).  ros::spin()
-   * will exit when Ctrl-C is pressed, or the node is shutdown by the master.
-   */
-  ros::spin();
+	// Initializa listener.
+	listener = new tf::TransformListener();
 
-  return 0;
+	// Enter a loop, pumping callbacks.
+	ros::spin();
+
+	return 0;
 }
