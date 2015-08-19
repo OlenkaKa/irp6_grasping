@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>grasping</name>
+  <name>irp6_grasping</name>
   <version>0.0.0</version>
-  <description>The grasping package</description>
+  <description>The irp6_grasping package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag --> 
   <!-- Example:  -->
@@ -40,6 +40,9 @@
   <!-- Use test_depend for packages you need only for testing: -->
   <!--   <test_depend>gtest</test_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>irp6_grasping_msgs</build_depend>
+
+
 
 
   <!-- The export tag contains other, unspecified, tags -->

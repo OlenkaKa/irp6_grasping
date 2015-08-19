@@ -5,6 +5,11 @@
 
 //#include <tf_conversions/transform_datatypes.h>
 
+// service for acquiring recognized object poses.
+#include <irp6_grasping_msgs/GetRecognizedObjectPose.h>
+
+
+
 // List of recognized objects.
 //std::vector<> estimated_objects;
 
@@ -15,7 +20,7 @@ tf::TransformListener* listener;
 /**
  * This tutorial demonstrates simple receipt of messages over the ROS system.
  */
-void estimationCallback(const object_recognition_msgs::RecognizedObject& object)
+void recognizedObjectPoseUpdateCallback(const object_recognition_msgs::RecognizedObject& object)
 {
 	ROS_INFO("I heard: [%s]", object.type.key.c_str());
 
@@ -47,25 +52,37 @@ void estimationCallback(const object_recognition_msgs::RecognizedObject& object)
 	} catch (tf::TransformException &ex) {
 		ROS_ERROR("%s",ex.what());
 	}//: catch
-
-
 }
+
+
+// Service responsible for returning recognized object with given object_id.
+bool returnRecognizedObjectPoseServiceCallback(irp6_grasping_msgs::GetRecognizedObjectPose::Request &req, irp6_grasping_msgs::GetRecognizedObjectPose::Response &res) {
+
+	return true;
+}
+
+
 
 int main(int argc, char **argv)
 {
 	// Initialize node.
-	ros::init(argc, argv, "recognized_object_pose_estimation");
+	ros::init(argc, argv, "recognized_objects_pose_estimation");
 
 	// Handle to communication ports.
 	ros::NodeHandle node;
 
-	// Create subscriber to topic containing recognized objects.
-	ros::Subscriber sub = node.subscribe("RecognizedObjects", 1000, estimationCallback);
-
-	// Initializa listener.
+	// Initialize TF listener.
 	listener = new tf::TransformListener();
 
-	// Enter a loop, pumping callbacks.
+	// Create subscriber to topic containing recognized objects.
+	ros::Subscriber sub = node.subscribe("RecognizedObjects", 1000, recognizedObjectPoseUpdateCallback);
+
+	// Initialize service.
+	ros::ServiceServer service = node.advertiseService("returnRecognizedObjectPose", returnRecognizedObjectPoseServiceCallback);
+
+	ROS_INFO("Ready for recognized object pose update and estimation.");
+
+	// Enter main loop, pumping callbacks.
 	ros::spin();
 
 	return 0;
