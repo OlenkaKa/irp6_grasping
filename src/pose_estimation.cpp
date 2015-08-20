@@ -117,16 +117,18 @@ void recognizedObjectPoseUpdateCallback(const object_recognition_msgs::Recognize
 			estimated_objects[index].confidence = estimated_objects[index].confidence/2 + object_.confidence;
 
 
-			// Update old object pose wrt to world coordinate frame. - TODO Kalman!!!!
+
+			// Update old object pose wrt to world coordinate frame.
 			geometry_msgs::Pose tmp_msg;
 			tf::poseTFToMsg(world_object_tf, tmp_msg);
+
+			// TODO: Kalman filter!
+
 			estimated_objects[index].pose.pose.pose = tmp_msg;
 
 		} else {
 			// If not - create new "object instance".
 			ROS_DEBUG("New Object");
-
-			// TODO: Kalman filter!
 
 			// Set object pose wrt to world coordinate frame.
 			geometry_msgs::Pose tmp_msg;
@@ -162,6 +164,24 @@ bool returnRecognizedObjectPoseServiceCallback(
 		return true;
 	}//: if
 
+	// Try to find object possesing given id and not being older than requested.
+	for(ro_it_t ro_i=estimated_objects.begin(); ro_i != estimated_objects.end(); ro_i++) {
+		// Check name.
+		if (ro_i->type.key != req_.object_id)
+			continue;
+
+		// Check object age - if it is older than age - skip.
+		if (ro_i->header.stamp < ros::Time::now() - req_.age)
+			continue;
+		// Ok, got the object - return it and finish.
+		res_.object = *ro_i;
+		res_.status = irp6_grasping_msgs::GetRecognizedObjectPose::Response::OBJECT_FOUND;
+		ROS_INFO("Returning object %s (%f)", res_.object.type.key.c_str(), res_.object.confidence);
+		return true;
+	}//: for
+	// Sorry, object was not found.
+	res_.status = irp6_grasping_msgs::GetRecognizedObjectPose::Response::OBJECT_NOT_FOUND;
+	ROS_INFO("Object %s not found on the list.", req_.object_id.c_str());
 	return true;
 }//: end
 
@@ -173,13 +193,16 @@ bool returnRecognizedObjectsListServiceCallback(
 {
 	// Special case: do not return anything if t here are no objects;)
 	if (estimated_objects.size() == 0){
-		ROS_INFO("No objects available on the list.");
+		ROS_DEBUG("No objects available on the list.");
 		return true;
 	}//: if
 
-
 	// Iterate and add names to list - in proper order, sorted by confidence.
 	for(ro_it_t ro_i=estimated_objects.begin(); ro_i != estimated_objects.end(); ro_i++) {
+		// Limit the size of returned vector - 0 means that there is no limit.
+		if ((req_.limit> 0)&&(res_.object_ids.size() >= req_.limit))
+			break;
+
 		// Check object age - if it is older than age - skip.
 		if (ro_i->header.stamp < ros::Time::now() - req_.age)
 			continue;
@@ -191,7 +214,7 @@ bool returnRecognizedObjectsListServiceCallback(
 
 		// First case: insert first oid.
 		if (res_.object_ids.size() == 0) {
-			ROS_INFO("Special case! - wstawiam");
+			ROS_DEBUG("Special case! - wstawiam");
 			res_.object_ids.push_back(oid);
 			continue;
 		}//: if
@@ -199,12 +222,11 @@ bool returnRecognizedObjectsListServiceCallback(
 		// Second case: insert in proper order.
 		bool added = false;
 		for (oid_it_t oid_i=res_.object_ids.begin(); oid_i<res_.object_ids.end(); oid_i++) {
-			ROS_INFO("Service - iterating: %f  < %f ?",oid_i->confidence, oid.confidence);
+			ROS_DEBUG("Service - iterating: %f  < %f ?",oid_i->confidence, oid.confidence);
 
 			if (oid_i->confidence < oid.confidence){
 				// Insert here! (i.e. before)
 				res_.object_ids.insert(oid_i, oid);
-				ROS_INFO("Wstawiam! - break!");
 				added = true;
 				break;
 			}//: if
@@ -214,9 +236,6 @@ bool returnRecognizedObjectsListServiceCallback(
 		if (!added)
 			res_.object_ids.push_back(oid);
 
-		// Limit the size of returned vector - 0 means that there is no limit.
-		if ((req_.limit> 0)&&(res_.object_ids.size() > req_.limit))
-			break;
 	}//: for
 
 	return true;
