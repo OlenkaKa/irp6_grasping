@@ -1,4 +1,6 @@
 #include <ros/ros.h>
+#include <visualization_msgs/Marker.h>
+
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
@@ -21,6 +23,9 @@ std::vector<object_recognition_msgs::RecognizedObject> estimated_objects;
 
 // TF listener.
 tf::TransformListener* listener;
+
+// Marker publisher - used for displaying objects.
+ros::Publisher vis_marker_publisher;
 
 /// Worlds frame id - coordinate frame common for all readings (ROS param).
 std::string world_frame_id;
@@ -68,23 +73,66 @@ int tryToFindObject(const object_recognition_msgs::RecognizedObject& object_) {
 	return -1;
 }//: end
 
+int displayed_markers_size = 0;
 
 /**
- * @brief Broadcasts poses of recognized objects on TF topic (in single message).
+ * @brief Broadcasts poses of recognized objects: poses on TF topic (in single message) and meshes on "virau
  */
 void broadcastRecognizedObjectsTFs() {
 	// Broadcaster.
 	static tf::TransformBroadcaster br;
 	std::vector< tf::StampedTransform > transforms;
 
+	// Delete all markers.
+	// del_marker.action = visualization_msgs::Marker::DELETEALL; -- UNAVAILABLE IN INDIGO!
+/*	for(size_t marker_i=0; marker_i < displayed_markers_size; marker_i++) {
+		visualization_msgs::Marker del_marker;
+		del_marker.ns = "pose_estimation_namespace";
+		del_marker.action = visualization_msgs::Marker::DELETE;
+		del_marker.id = marker_i;
+		vis_marker_publisher.publish( del_marker );
+	}//: for*/
+
+
+	displayed_markers_size=0;
 	// Broadcast the possessed poses.
 	for(ro_it_t obj=estimated_objects.begin(); obj != estimated_objects.end(); obj++) {
+		// FOR DEBUG PURPOSES!!
+/**/		obj->header.stamp = ros::Time::now();
+		obj->pose.header.stamp = ros::Time::now();/**/
+
 		ROS_DEBUG("Adding transform from %s to %s to broadcasted TF message", obj->header.frame_id.c_str(), obj->type.key.c_str());
 		tf::Transform transform;
 		ROS_DEBUG("Transform %f %f %f ", obj->pose.pose.pose.position.x, obj->pose.pose.pose.position.y, obj->pose.pose.pose.position.z);
 		tf::poseMsgToTF (obj->pose.pose.pose , transform);
 		transforms.push_back(
 					tf::StampedTransform(transform, obj->pose.header.stamp, obj->header.frame_id, obj->type.key));
+
+		/*
+		// Add marker for given object.
+		visualization_msgs::Marker marker;
+		marker.header = obj->header;
+		marker.ns = "pose_estimation_namespace";
+		marker.id = displayed_markers_size++;
+		marker.type = visualization_msgs::Marker::CUBE;
+		marker.action = visualization_msgs::Marker::ADD;
+		marker.pose.position.x = obj->pose.pose.pose.position.x;
+		marker.pose.position.y = obj->pose.pose.pose.position.y;
+		marker.pose.position.z = obj->pose.pose.pose.position.z;
+		marker.pose.orientation.x = obj->pose.pose.pose.orientation.x;
+		marker.pose.orientation.y = obj->pose.pose.pose.orientation.y;
+		marker.pose.orientation.z = obj->pose.pose.pose.orientation.z;
+		marker.pose.orientation.w = obj->pose.pose.pose.orientation.w;
+		marker.scale.x = 0.1;
+		marker.scale.y = 0.1;
+		marker.scale.z = 0.1;
+		marker.color.a = 1.0; // Don't forget to set the alpha!
+		marker.color.r = 0.0;
+		marker.color.g = 1.0;
+		marker.color.b = 0.0;
+		vis_marker_publisher.publish( marker );
+		*/
+
 	}//: for
 
 	ROS_DEBUG ("Broadcasting [%d] pose(s) at once", (int)transforms.size());
@@ -265,6 +313,9 @@ int main(int argc, char **argv)
 	ros::ServiceServer service1 = node.advertiseService("return_recognized_object_pose", returnRecognizedObjectPoseServiceCallback);
 	ros::ServiceServer service2 = node.advertiseService("return_recognized_objects_list", returnRecognizedObjectsListServiceCallback);
 
+	// Initialize marker publisher.
+	vis_marker_publisher = node.advertise<visualization_msgs::Marker>( "visualization_marker", 0 );
+
 	ROS_INFO("Ready for recognized object pose update and estimation.");
 
 	// Enter main loop, pumping callbacks.
@@ -272,6 +323,61 @@ int main(int argc, char **argv)
 	while (ros::ok())
 	{
 		broadcastRecognizedObjectsTFs();
+
+		// TRIANGLE_LIST marker test!
+		visualization_msgs::Marker marker;
+		marker.header.frame_id = world_frame_id;
+		marker.header.stamp = ros::Time();
+		marker.ns = "marker_test_triangle_list";
+		marker.id = 0;
+		marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
+		marker.action = visualization_msgs::Marker::ADD;
+		marker.pose.position.x = 0.0;
+		marker.pose.position.y = 0.0;
+		marker.pose.position.z = 0.0;
+		marker.pose.orientation.x = 0.0;
+		marker.pose.orientation.y = 0.0;
+		marker.pose.orientation.z = 0.0;
+		marker.pose.orientation.w = 1.0;
+		marker.scale.x = 1.0;
+		marker.scale.y = 1.0;
+		marker.scale.z = 1.0;
+		marker.color.g = 1.0;
+		marker.color.a = 1.0;
+		for (int x = 0; x < 10; ++x)
+		{
+			  for (int y = 0; y < 10; ++y)
+			{
+			  for (int z = 0; z < 10; ++z)
+				{
+				  geometry_msgs::Point p;
+				p.x = x * 0.1f;
+				p.y = y * 0.1f;
+				p.z = z * 0.1f;
+				geometry_msgs::Point p2 = p;
+				p2.x = p.x + 0.05;
+
+				geometry_msgs::Point p3 = p;
+				p3.x = p2.x;
+				p3.z = p.z + 0.05;
+
+				marker.points.push_back(p);
+				marker.points.push_back(p2);
+				marker.points.push_back(p3);
+
+				std_msgs::ColorRGBA c;
+				c.r = x * 0.1;
+				c.g = y * 0.1;
+				c.b = z * 0.1;
+				marker.colors.push_back(c);
+				marker.colors.push_back(c);
+				marker.colors.push_back(c);
+				}
+			}
+		}
+		vis_marker_publisher.publish( marker );
+
+
 		ros::spinOnce();
 		r.sleep();
 	}
