@@ -11,8 +11,12 @@ import math
 import tf
 import tf_conversions.posemath as posemath
 import PyKDL
+import numpy as np
 
 from irp6_grasping_msgs.srv import *
+
+from irpos import *
+
 
 # Initialize predefined grasps in the form of:
 # object_id, size(along x,y,z) in m, [grasp_name, translation, rotation (wrt to model reference frame), distance between fingers]
@@ -33,8 +37,8 @@ object_models = [
 	['/lipton_earl_grey_lemon', PyKDL.Vector(0.149, -0.061, 0.040)]
 ]
 
-
-
+# Tolerance used for computation of distance between gripper fingers (the distance, computed on the basis of object dimensions, is reduced by this parameter), in meters.
+grasp_distance_tolerance = 0.002
 
 
 # Function call service in order to get list of recignized objects.
@@ -90,12 +94,12 @@ def generate_grasps_wrt_object(obj_id, obj_pose ):
 		print 'ERROR: Object model not found on the list!'
 		return [];
 	#grasp_top_origin = ['grasp_top', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi, 0, 0), PyKDL.Vector(0.07, -0.0375, 0.064)), 0.075]
-	grasp_top_origin = ['grasp_top', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, object_models[obj_number][1][1]/2, object_models[obj_number][1][2])), math.fabs(object_models[obj_number][1][1])]
-	grasp_bottom_origin = ['grasp_bottom', PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, object_models[obj_number][1][1]/2, 0.0)), math.fabs(object_models[obj_number][1][1])]
-	grasp_left_origin = ['grasp_left', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi/2, 0, math.pi/2), PyKDL.Vector(0.0, object_models[obj_number][1][1]/2, object_models[obj_number][1][2]/2)), math.fabs(object_models[obj_number][1][2])]
-	grasp_right_origin = ['grasp_right', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi/2, 0, -math.pi/2), PyKDL.Vector(object_models[obj_number][1][0], object_models[obj_number][1][1]/2, object_models[obj_number][1][2]/2)), math.fabs(object_models[obj_number][1][2])]
-	grasp_front_origin = ['grasp_front', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi/2, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, 0.0, object_models[obj_number][1][2]/2)), math.fabs(object_models[obj_number][1][1])]
-	grasp_back_origin = ['grasp_back', PyKDL.Frame(PyKDL.Rotation.RPY(-math.pi/2, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, object_models[obj_number][1][1], object_models[obj_number][1][2]/2)), math.fabs(object_models[obj_number][1][1])]
+	grasp_top_origin = ['grasp_top', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, object_models[obj_number][1][1]/2, object_models[obj_number][1][2])), math.fabs(object_models[obj_number][1][1])-grasp_distance_tolerance]
+	grasp_bottom_origin = ['grasp_bottom', PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, object_models[obj_number][1][1]/2, 0.0)), math.fabs(object_models[obj_number][1][1])-grasp_distance_tolerance]
+	grasp_left_origin = ['grasp_left', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi/2, 0, math.pi/2), PyKDL.Vector(0.0, object_models[obj_number][1][1]/2, object_models[obj_number][1][2]/2)), math.fabs(object_models[obj_number][1][2])-grasp_distance_tolerance]
+	grasp_right_origin = ['grasp_right', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi/2, 0, -math.pi/2), PyKDL.Vector(object_models[obj_number][1][0], object_models[obj_number][1][1]/2, object_models[obj_number][1][2]/2)), math.fabs(object_models[obj_number][1][2])-grasp_distance_tolerance]
+	grasp_front_origin = ['grasp_front', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi/2, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, 0.0, object_models[obj_number][1][2]/2)), math.fabs(object_models[obj_number][1][1])-grasp_distance_tolerance]
+	grasp_back_origin = ['grasp_back', PyKDL.Frame(PyKDL.Rotation.RPY(-math.pi/2, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, object_models[obj_number][1][1], object_models[obj_number][1][2]/2)), math.fabs(object_models[obj_number][1][1])-grasp_distance_tolerance]
 	return [grasp_top_origin,grasp_bottom_origin,grasp_left_origin, grasp_right_origin, grasp_front_origin, grasp_back_origin]
 
 
@@ -115,14 +119,16 @@ def dummy_highest_grasp_pose_selection( grasp_poses ):
 
 def generate_pregrasp( selected_grasp ):
 	# pregrasp pose: along z by -10 cm.
-	pose = selected_grasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, -0.1))
+	pose = selected_grasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, -0.20))
 	# Set finger distance to 9cm.
 	return ['pregrasp', pose, 0.09]
 
 
 if __name__ == "__main__":
 	# Initialize node
-	rospy.init_node('irp6_grasping')
+	#rospy.init_node('irp6_grasping')
+	#Initialize IRPOS for IRp6-ot robot - it also initializes ROS NODE(!)
+	irpos = IRPOS("irp6ot_grasping", "Irp6ot", 7,'irp6ot_manager')
 	# Initialize broadcaster
 	br = tf.TransformBroadcaster()
 	# SLEEP REQUIRED FOR BROADCASTER TO INITIALIZE PROPERLY!!!!
@@ -137,6 +143,18 @@ if __name__ == "__main__":
 	#print ' +--  Grasp 5: ',predefined_grasps[0][2][5]
 	#br.sendTransform((1, 1, 0), tf.transformations.quaternion_from_euler(0, 0, 0), rospy.Time.now(), "/test2", "world")
 	while (1):
+		# Move IRp6-ot to front position.
+		half_pi = math.pi/2
+		# Get current joint position.
+		front_desired_joints = [0, 0, -half_pi, 0, 0, 3*half_pi, -half_pi]
+		current_joints = irpos.get_joint_position()
+		# Compare joint positions.
+		diff = np.array(front_desired_joints[1:6]) - np.array(current_joints[1:6])
+		if np.amax(np.absolute(diff)) > 0.01:
+			print 'Moving IRp-6ot to front position'
+			irpos.move_to_joint_position(front_desired_joints, 10.00)
+		else:
+			print 'IRp-6ot standing in front position'
 		# Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
 		oids = get_recognized_objects_list(rospy.Time(1), 0)
 		# Check if there are any objects on the list.
@@ -186,4 +204,18 @@ if __name__ == "__main__":
 		# Generate pregrasps.
 		pregrasp = generate_pregrasp(selected_grasp)
 		broadcast_pose(br, pregrasp[1], pregrasp[0], ret.object.header.frame_id)
+		# Move to pregrasp pose.
+		irpos.move_to_cartesian_pose(10.0,pm.toMsg(pregrasp[1]))
+		# Set pregrasp distance between fingers.
+		irpos.tfg_to_joint_position(pregrasp[2], 3.0)
+		# Move towards the object.
+		#pose = pregrasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, 0.10))
+		irpos.move_to_cartesian_pose(3.0,pm.toMsg(selected_grasp[1]))
+		# Set grasp distance between fingers.
+		irpos.tfg_to_joint_position(selected_grasp[2], 3.0)
+		# Move back to pregrasp pose.
+		irpos.move_to_cartesian_pose(3.0,pm.toMsg(pregrasp[1]))
+		# Move to 'object drop' pose.
+
 		#end of program;)
+
