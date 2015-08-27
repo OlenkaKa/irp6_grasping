@@ -79,7 +79,7 @@ def broadcast_pose(br, pm_pose, child_frame_id, parent_id):
 		parent_id)
 
 
-def generate_grasp_poses(obj_id, obj_pose ):
+def generate_grasps_wrt_object(obj_id, obj_pose ):
 	# Find index for given id
 	obj_number = -1;
 	for i in range(len(object_models)):
@@ -99,17 +99,25 @@ def generate_grasp_poses(obj_id, obj_pose ):
 	return [grasp_top_origin,grasp_bottom_origin,grasp_left_origin, grasp_right_origin, grasp_front_origin, grasp_back_origin]
 
 
-def dummy_highest_grasp_pose_selection(grasp_poses ):
-	min_z = 100;
-	min_i = -1
+def dummy_highest_grasp_pose_selection( grasp_poses ):
+	max_z = -100
+	max_i = -1
 	for i in range(len(grasp_poses)):
-		print i
-		print grasp_poses[i]
-		print grasp_poses[i][0]
-		if (grasp_poses[i][1][2] < min_z):
-			min_z = grasp_poses[i][1][2]
-			min_i = i;
-	return grasp_poses[i]
+		#print grasp_poses[i]
+		print grasp_poses[i][1].p
+		#print i, grasp_poses[i].p.z(), max_z
+		if (grasp_poses[i][1].p.z() > max_z):
+			max_z = grasp_poses[i][1].p.z()
+			max_i = i;
+	return ['selected_grasp', grasp_poses[max_i][1], grasp_poses[max_i][2]]
+
+
+
+def generate_pregrasp( selected_grasp ):
+	# pregrasp pose: along z by -10 cm.
+	pose = selected_grasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, -0.1))
+	# Set finger distance to 9cm.
+	return ['pregrasp', pose, 0.09]
 
 
 if __name__ == "__main__":
@@ -149,11 +157,13 @@ if __name__ == "__main__":
 			continue
 		# Else - let's grab it!
 		#print 'Object x= {0:.4f} y={1:.4f} z={2:.4f}'.format(ret.object.pose.pose.pose.position.x,ret.object.pose.pose.pose.position.y,ret.object.pose.pose.pose.position.z)
-		# Recalculate grasp poses
+		# Broadcast TF with object pose.
 		obj_pose = posemath.fromMsg(ret.object.pose.pose.pose)
 		broadcast_pose(br, obj_pose, ret.object.type.key, ret.object.header.frame_id)
-		generated_grasps = generate_grasp_poses(id, obj_pose)
-		if len(generated_grasps) == 0:
+		# Generate grasps in object reference frame
+		grasps_wrt_object = generate_grasps_wrt_object(id, obj_pose)
+		# Check grasps.
+		if len(grasps_wrt_object) == 0:
 			print "ERROR: Cannot generate grasping points! Skipping this one and trying to recognize and grasp another object!"
 			continue
 		print "Properly generated grasping points for ", oids.object_ids[0]," object!"
@@ -163,15 +173,17 @@ if __name__ == "__main__":
 		#print ' +--  Generated Grasp 3: ',generated_grasps[3]
 		#print ' +--  Generated Grasp 4: ',generated_grasps[4]
 		#print ' +--  Generated Grasp 5: ',generated_grasps[5]
-		# Broadcast grasping poses.
-		grasp_poses = []
+		# Transform grasps to world reference frame
+		grasps_wrt_world = []
 		for gr_i in range(6):
 			#print generated_grasps[gr_i][0], "with finger distance ",generated_grasps[gr_i][2]
-			grasp_poses.append(obj_pose* generated_grasps[gr_i][1]);
-			grasp_name = generated_grasps[gr_i][0]#ret.object.type.key + grasp_data[0]
-			broadcast_pose(br, grasp_poses[gr_i], grasp_name, ret.object.header.frame_id)
+			grasps_wrt_world.append([grasps_wrt_object[gr_i][0], obj_pose* grasps_wrt_object[gr_i][1], grasps_wrt_object[gr_i][2]]);
+			#grasp_name = generated_grasps[gr_i][0]#ret.object.type.key + grasp_data[0]
+			broadcast_pose(br, grasps_wrt_world[gr_i][1], grasps_wrt_world[gr_i][0], ret.object.header.frame_id)
 		# Grasp selection - select "highest" pose.
-		selected_grasp_pose = dummy_highest_grasp_pose_selection(grasp_poses)
-		broadcast_pose(br, selected_grasp_pose, 'selected_grasp_pose', ret.object.header.frame_id)
-
-		#break
+		selected_grasp = dummy_highest_grasp_pose_selection(grasps_wrt_world)
+		broadcast_pose(br, selected_grasp[1], selected_grasp[0], ret.object.header.frame_id)
+		# Generate pregrasps.
+		pregrasp = generate_pregrasp(selected_grasp)
+		broadcast_pose(br, pregrasp[1], pregrasp[0], ret.object.header.frame_id)
+		#end of program;)

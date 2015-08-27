@@ -30,32 +30,11 @@ ros::Publisher vis_marker_publisher;
 /// Worlds frame id - coordinate frame common for all readings (ROS param).
 std::string world_frame_id;
 
+/// Max age of marker - afterwards it will not be displayed.
+double marker_max_age;
 
 
 
-/**
- * Function recalculates object pose from sensor frame (given in message) to world frame (in TF).
- */
-tf::Transform transformFromSensorPoseMsgToWorldTF(
-	const geometry_msgs::Pose & sensor_object_msg_pose_,
-	const std::string sensor_frame_id_,
-	const ros::Time stamp_)
-{
-	// Get object pose in sensor frame.
-	tf::Transform sensor_object_tf;
-	tf::poseMsgToTF (sensor_object_msg_pose_ , sensor_object_tf);
-
-	ROS_DEBUG("Waiting for transform from %s to %s", world_frame_id.c_str(), sensor_frame_id_.c_str());
-
-	// Get sensor-camera transformation.
-	tf::StampedTransform world_sensor_tf;
-
-	// Throws exception that must be handled outside of the function.
-	listener->lookupTransform(world_frame_id, sensor_frame_id_, stamp_, world_sensor_tf);
-
-	// Compute pose in original (kinect/camera) reference frame.
-	return (world_sensor_tf * sensor_object_tf);
-}//: end
 
 /**
  * @brief Function checks whether there is that object already on the list.
@@ -73,7 +52,67 @@ int tryToFindObject(const object_recognition_msgs::RecognizedObject& object_) {
 	return -1;
 }//: end
 
+
+
 int displayed_markers_size = 0;
+
+
+void publish_object_mesh_as_marker(int & marker_id_, std_msgs::Header header_, shape_msgs::Mesh bounding_mesh_){
+	// Check marker age - if it is older than age - skip.
+	if (header_.stamp < ros::Time::now() - ros::Duration(marker_max_age))
+		return;
+
+	visualization_msgs::Marker marker;
+	// Set header.
+	marker.header = header_;
+
+	marker.ns = "marker_object_meshes";
+	marker.id = marker_id_++;
+	marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
+	marker.action = visualization_msgs::Marker::ADD;
+/*	marker.pose.position.x = 0.0;
+	marker.pose.position.y = 0.0;
+	marker.pose.position.z = 0.0;
+	marker.pose.orientation.x = 0.0;
+	marker.pose.orientation.y = 0.0;
+	marker.pose.orientation.z = 0.0;
+	marker.pose.orientation.w = 1.0;*/
+	marker.scale.x = 1.0;
+	marker.scale.y = 1.0;
+	marker.scale.z = 1.0;
+
+	std_msgs::ColorRGBA c;
+	c.r = (marker_id_%1 == 0);
+	c.g = (marker_id_%2 == 0);
+	c.b = (marker_id_%3 == 0);
+	// Alpha (opacity).
+	// c.a = 1.0f;
+	int size = bounding_mesh_.triangles.size();
+
+	// Iterate on mesh triangles.
+	for (size_t i=0; i< size; i++) {
+		shape_msgs::MeshTriangle mt = bounding_mesh_.triangles[i];
+		// Add triangle vertices.
+		marker.points.push_back(bounding_mesh_.vertices[mt.vertex_indices[0]]);
+		marker.points.push_back(bounding_mesh_.vertices[mt.vertex_indices[1]]);
+		marker.points.push_back(bounding_mesh_.vertices[mt.vertex_indices[2]]);
+		// Add triangle colour
+		std_msgs::ColorRGBA ct;
+		ct.r = (double)(i+1)/(size+1) *c.r;
+		ct.g = (double)(i+1)/(size+1) *c.g;
+		ct.b = (double)(i+1)/(size+1) *c.b;
+		// Alpha (opacity).
+		ct.a = 1.0f;
+
+		marker.colors.push_back(ct);
+		marker.colors.push_back(ct);
+		marker.colors.push_back(ct);
+	}//: for
+
+	vis_marker_publisher.publish( marker );
+
+}
+
 
 /**
  * @brief Broadcasts poses of recognized objects: poses on TF topic (in single message) and meshes on "virau
@@ -85,30 +124,34 @@ void broadcastRecognizedObjectsTFs() {
 
 	// Delete all markers.
 	// del_marker.action = visualization_msgs::Marker::DELETEALL; -- UNAVAILABLE IN INDIGO!
-/*	for(size_t marker_i=0; marker_i < displayed_markers_size; marker_i++) {
+	for(size_t marker_i=0; marker_i < displayed_markers_size; marker_i++) {
 		visualization_msgs::Marker del_marker;
-		del_marker.ns = "pose_estimation_namespace";
-		del_marker.action = visualization_msgs::Marker::DELETE;
+		del_marker.ns = "marker_object_meshes";
 		del_marker.id = marker_i;
+		del_marker.header.frame_id = world_frame_id;
+		del_marker.header.stamp = ros::Time();
+		del_marker.action = visualization_msgs::Marker::DELETE;
 		vis_marker_publisher.publish( del_marker );
-	}//: for*/
+	}//: for
 
 
 	displayed_markers_size=0;
 	// Broadcast the possessed poses.
 	for(ro_it_t obj=estimated_objects.begin(); obj != estimated_objects.end(); obj++) {
 		// FOR DEBUG PURPOSES!!
-/**/		obj->header.stamp = ros::Time::now();
+/*		obj->header.stamp = ros::Time::now();
 		obj->pose.header.stamp = ros::Time::now();/**/
 
 		ROS_DEBUG("Adding transform from %s to %s to broadcasted TF message", obj->header.frame_id.c_str(), obj->type.key.c_str());
 		tf::Transform transform;
 		ROS_DEBUG("Transform %f %f %f ", obj->pose.pose.pose.position.x, obj->pose.pose.pose.position.y, obj->pose.pose.pose.position.z);
 		tf::poseMsgToTF (obj->pose.pose.pose , transform);
+		// Add transform to published vector.
 		transforms.push_back(
 					tf::StampedTransform(transform, obj->pose.header.stamp, obj->header.frame_id, obj->type.key));
-
-		/*
+		// Publish mesh as marker.
+		publish_object_mesh_as_marker(displayed_markers_size, obj->header, obj->bounding_mesh);
+/*
 		// Add marker for given object.
 		visualization_msgs::Marker marker;
 		marker.header = obj->header;
@@ -131,7 +174,7 @@ void broadcastRecognizedObjectsTFs() {
 		marker.color.g = 1.0;
 		marker.color.b = 0.0;
 		vis_marker_publisher.publish( marker );
-		*/
+*/
 
 	}//: for
 
@@ -142,6 +185,55 @@ void broadcastRecognizedObjectsTFs() {
 }
 
 
+
+/**
+ * Function recalculates object pose from sensor frame (given in message) to world frame (in TF).
+ */
+geometry_msgs::Pose sensorToWorlMsgPose(
+	const geometry_msgs::Pose & sensor_object_msg_pose_,
+	const tf::Transform world_sensor_tf_)
+{
+	// Get object pose in sensor frame.
+	tf::Transform sensor_object_tf;
+	tf::poseMsgToTF (sensor_object_msg_pose_ , sensor_object_tf);
+
+	// Compute pose in original (kinect/camera) reference frame.
+	tf::Transform world_sensor_tf = world_sensor_tf_ * sensor_object_tf;
+
+	geometry_msgs::Pose world_sensor_msg_pose;
+	tf::poseTFToMsg(world_sensor_tf, world_sensor_msg_pose);
+
+	return world_sensor_msg_pose;
+}//: end
+
+
+
+/// Conversion from PointXYZ to geometry_msgs::Point
+static inline geometry_msgs::Point sensorToWorldMsgPoint(
+		const geometry_msgs::Point & sensor_pt_,
+		const tf::Transform world_sensor_tf_)
+{
+	// Copy data to "normal point".
+	tf::Point sensor_pt_xyz;
+	sensor_pt_xyz[0] = sensor_pt_.x;
+	sensor_pt_xyz[1] = sensor_pt_.y;
+	sensor_pt_xyz[2] = sensor_pt_.z;
+
+
+	// Transform.
+	tf::Point world_pt_xyz = world_sensor_tf_ * sensor_pt_xyz;
+
+	// Copy result to "msg point".
+	geometry_msgs::Point world_pt;
+	world_pt.x = world_pt_xyz[0];
+	world_pt.y = world_pt_xyz[1];
+	world_pt.z = world_pt_xyz[2];
+
+	return world_pt;
+}
+
+
+
 /**
  * Listener responsible for acquiring and estimating poses of recognized objects in world reference frame.
  */
@@ -150,7 +242,12 @@ void recognizedObjectPoseUpdateCallback(const object_recognition_msgs::Recognize
 	ROS_DEBUG("I received: %s in %s reference frame ", object_.type.key.c_str(), object_.pose.header.frame_id.c_str());
 
 	try{
-		tf::Transform world_object_tf = transformFromSensorPoseMsgToWorldTF(object_.pose.pose.pose, object_.pose.header.frame_id, object_.pose.header.stamp);
+		// Get world-sensor(camera) transformation.
+		tf::StampedTransform world_sensor_tf;
+		ROS_DEBUG("Getting transform from %s to %s", world_frame_id.c_str(), object_.pose.header.frame_id.c_str());
+		// Throws exception that must be handled outside of the function.
+		listener->lookupTransform(world_frame_id, object_.pose.header.frame_id, object_.pose.header.stamp, world_sensor_tf);
+
 
 		// Try to find the object with the same model_id and pose.
 		int index = tryToFindObject(object_);
@@ -167,27 +264,42 @@ void recognizedObjectPoseUpdateCallback(const object_recognition_msgs::Recognize
 
 
 			// Update old object pose wrt to world coordinate frame.
-			geometry_msgs::Pose tmp_msg;
-			tf::poseTFToMsg(world_object_tf, tmp_msg);
+			geometry_msgs::Pose tmp_msg_pose = sensorToWorlMsgPose(object_.pose.pose.pose, world_sensor_tf);
 
 			// TODO: Kalman filter!
 
-			estimated_objects[index].pose.pose.pose = tmp_msg;
+			// Transform the object pose.
+			estimated_objects[index].pose.pose.pose = tmp_msg_pose;
+			// Transform the associated mesh pose.
+			estimated_objects[index].bounding_mesh.vertices.clear();
+			// Add transformed vertices one by one.
+			for (size_t pt_i=0; pt_i < object_.bounding_mesh.vertices.size(); pt_i++) {
+				estimated_objects[index].bounding_mesh.vertices.push_back(sensorToWorldMsgPoint(object_.bounding_mesh.vertices[pt_i], world_sensor_tf));
+			}//: for
+
+
 
 		} else {
 			// If not - create new "object instance".
 			ROS_DEBUG("New Object");
 
 			// Set object pose wrt to world coordinate frame.
-			geometry_msgs::Pose tmp_msg;
-			tf::poseTFToMsg(world_object_tf, tmp_msg);
+			geometry_msgs::Pose tmp_msg_pose = sensorToWorlMsgPose(object_.pose.pose.pose, world_sensor_tf);
 
 			// Copy data.
 			object_recognition_msgs::RecognizedObject tmp_object (object_);
-			// Change pose and set adequate reference frames.
-			tmp_object.pose.pose.pose = tmp_msg;
+			// Set adequate reference frames.
 			tmp_object.header.frame_id = world_frame_id;
 			tmp_object.pose.header.frame_id = world_frame_id;
+
+			// Transform the object pose.
+			tmp_object.pose.pose.pose = tmp_msg_pose;
+			// Transform the associated mesh pose.
+			tmp_object.bounding_mesh.vertices.clear();
+			// Add transformed vertices one by one.
+			for (size_t pt_i=0; pt_i < object_.bounding_mesh.vertices.size(); pt_i++) {
+				tmp_object.bounding_mesh.vertices.push_back(sensorToWorldMsgPoint(object_.bounding_mesh.vertices[pt_i], world_sensor_tf));
+			}//: for
 
 			// Add object to list.
 			estimated_objects.push_back(tmp_object);
@@ -300,8 +412,12 @@ int main(int argc, char **argv)
 	// Handle to communication ports.
 	ros::NodeHandle node;
 
-	// Read parameter - name of the world coordinate frame.
-	node.param<std::string>("world_frame_id", world_frame_id, "/tl_base");
+	// Read parameters
+	// Name of the world coordinate frame.
+	node.param<std::string>("world_frame_id", world_frame_id, "/tl_base");\
+
+	// Max age of marker - afterwards it will not be displayed.
+	node.param<double>("marker_max_age", marker_max_age, 5.0);
 
 	// Initialize TF listener.
 	listener = new tf::TransformListener();
@@ -323,7 +439,7 @@ int main(int argc, char **argv)
 	while (ros::ok())
 	{
 		broadcastRecognizedObjectsTFs();
-
+/*
 		// TRIANGLE_LIST marker test!
 		visualization_msgs::Marker marker;
 		marker.header.frame_id = world_frame_id;
@@ -342,8 +458,6 @@ int main(int argc, char **argv)
 		marker.scale.x = 1.0;
 		marker.scale.y = 1.0;
 		marker.scale.z = 1.0;
-		marker.color.g = 1.0;
-		marker.color.a = 1.0;
 		for (int x = 0; x < 10; ++x)
 		{
 			  for (int y = 0; y < 10; ++y)
@@ -369,6 +483,7 @@ int main(int argc, char **argv)
 				c.r = x * 0.1;
 				c.g = y * 0.1;
 				c.b = z * 0.1;
+				c.a = 1.0;
 				marker.colors.push_back(c);
 				marker.colors.push_back(c);
 				marker.colors.push_back(c);
@@ -376,7 +491,7 @@ int main(int argc, char **argv)
 			}
 		}
 		vis_marker_publisher.publish( marker );
-
+*/
 
 		ros::spinOnce();
 		r.sleep();
