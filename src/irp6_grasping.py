@@ -215,7 +215,8 @@ if __name__ == "__main__":
 		irpos.tfg_to_joint_position(selected_grasp[2], 3.0)
 		# Move back to pregrasp pose.
 		irpos.move_to_cartesian_pose(3.0,pm.toMsg(pregrasp[1]))
-		# Move to 'object drop' pose.
+		# Set pregrasp distance between fingers - drop object.
+		irpos.tfg_to_joint_position(pregrasp[2], 3.0)
 
 		#end of program;)
 
