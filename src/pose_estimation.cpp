@@ -6,6 +6,10 @@
 
 #include <object_recognition_msgs/RecognizedObject.h>
 
+// Header containing Kalman filter.
+#include <opencv2/video/tracking.hpp>
+
+
 typedef std::vector<object_recognition_msgs::RecognizedObject>::iterator ro_it_t;
 
 // Service for acquiring recognized object pose.
@@ -53,7 +57,7 @@ int tryToFindObject(const object_recognition_msgs::RecognizedObject& object_) {
 }//: end
 
 
-
+/// Variable storing number of displayed markers.
 int displayed_markers_size = 0;
 
 
@@ -70,13 +74,6 @@ void publish_object_mesh_as_marker(int & marker_id_, std_msgs::Header header_, s
 	marker.id = marker_id_++;
 	marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
 	marker.action = visualization_msgs::Marker::ADD;
-/*	marker.pose.position.x = 0.0;
-	marker.pose.position.y = 0.0;
-	marker.pose.position.z = 0.0;
-	marker.pose.orientation.x = 0.0;
-	marker.pose.orientation.y = 0.0;
-	marker.pose.orientation.z = 0.0;
-	marker.pose.orientation.w = 1.0;*/
 	marker.scale.x = 1.0;
 	marker.scale.y = 1.0;
 	marker.scale.z = 1.0;
@@ -151,30 +148,6 @@ void broadcastRecognizedObjectsTFs() {
 					tf::StampedTransform(transform, obj->pose.header.stamp, obj->header.frame_id, obj->type.key));
 		// Publish mesh as marker.
 		publish_object_mesh_as_marker(displayed_markers_size, obj->header, obj->bounding_mesh);
-/*
-		// Add marker for given object.
-		visualization_msgs::Marker marker;
-		marker.header = obj->header;
-		marker.ns = "pose_estimation_namespace";
-		marker.id = displayed_markers_size++;
-		marker.type = visualization_msgs::Marker::CUBE;
-		marker.action = visualization_msgs::Marker::ADD;
-		marker.pose.position.x = obj->pose.pose.pose.position.x;
-		marker.pose.position.y = obj->pose.pose.pose.position.y;
-		marker.pose.position.z = obj->pose.pose.pose.position.z;
-		marker.pose.orientation.x = obj->pose.pose.pose.orientation.x;
-		marker.pose.orientation.y = obj->pose.pose.pose.orientation.y;
-		marker.pose.orientation.z = obj->pose.pose.pose.orientation.z;
-		marker.pose.orientation.w = obj->pose.pose.pose.orientation.w;
-		marker.scale.x = 0.1;
-		marker.scale.y = 0.1;
-		marker.scale.z = 0.1;
-		marker.color.a = 1.0; // Don't forget to set the alpha!
-		marker.color.r = 0.0;
-		marker.color.g = 1.0;
-		marker.color.b = 0.0;
-		vis_marker_publisher.publish( marker );
-*/
 
 	}//: for
 
@@ -186,9 +159,7 @@ void broadcastRecognizedObjectsTFs() {
 
 
 
-/**
- * Function recalculates object pose from sensor frame (given in message) to world frame (in TF).
- */
+/// Function transforms pose from sensor to world coordinate frame.
 geometry_msgs::Pose sensorToWorlMsgPose(
 	const geometry_msgs::Pose & sensor_object_msg_pose_,
 	const tf::Transform world_sensor_tf_)
@@ -196,19 +167,16 @@ geometry_msgs::Pose sensorToWorlMsgPose(
 	// Get object pose in sensor frame.
 	tf::Transform sensor_object_tf;
 	tf::poseMsgToTF (sensor_object_msg_pose_ , sensor_object_tf);
-
 	// Compute pose in original (kinect/camera) reference frame.
 	tf::Transform world_sensor_tf = world_sensor_tf_ * sensor_object_tf;
-
 	geometry_msgs::Pose world_sensor_msg_pose;
 	tf::poseTFToMsg(world_sensor_tf, world_sensor_msg_pose);
-
 	return world_sensor_msg_pose;
 }//: end
 
 
 
-/// Conversion from PointXYZ to geometry_msgs::Point
+/// Function transforms point from sensor to world coordinate frame.
 static inline geometry_msgs::Point sensorToWorldMsgPoint(
 		const geometry_msgs::Point & sensor_pt_,
 		const tf::Transform world_sensor_tf_)
@@ -218,20 +186,235 @@ static inline geometry_msgs::Point sensorToWorldMsgPoint(
 	sensor_pt_xyz[0] = sensor_pt_.x;
 	sensor_pt_xyz[1] = sensor_pt_.y;
 	sensor_pt_xyz[2] = sensor_pt_.z;
-
-
 	// Transform.
 	tf::Point world_pt_xyz = world_sensor_tf_ * sensor_pt_xyz;
-
 	// Copy result to "msg point".
 	geometry_msgs::Point world_pt;
 	world_pt.x = world_pt_xyz[0];
 	world_pt.y = world_pt_xyz[1];
 	world_pt.z = world_pt_xyz[2];
-
 	return world_pt;
 }
 
+void initKalmanFilter(cv::KalmanFilter &KF, int nStates, int nMeasurements, int nInputs, double dt)
+{
+  KF.init(nStates, nMeasurements, nInputs, CV_64F);                 // init Kalman Filter
+  cv::setIdentity(KF.processNoiseCov, cv::Scalar::all(1e-5));       // set process noise
+  cv::setIdentity(KF.measurementNoiseCov, cv::Scalar::all(1e-4));   // set measurement noise
+  cv::setIdentity(KF.errorCovPost, cv::Scalar::all(1));             // error covariance
+				 /* DYNAMIC MODEL */
+  //  [1 0 0 dt  0  0 dt2   0   0 0 0 0  0  0  0   0   0   0]
+  //  [0 1 0  0 dt  0   0 dt2   0 0 0 0  0  0  0   0   0   0]
+  //  [0 0 1  0  0 dt   0   0 dt2 0 0 0  0  0  0   0   0   0]
+  //  [0 0 0  1  0  0  dt   0   0 0 0 0  0  0  0   0   0   0]
+  //  [0 0 0  0  1  0   0  dt   0 0 0 0  0  0  0   0   0   0]
+  //  [0 0 0  0  0  1   0   0  dt 0 0 0  0  0  0   0   0   0]
+  //  [0 0 0  0  0  0   1   0   0 0 0 0  0  0  0   0   0   0]
+  //  [0 0 0  0  0  0   0   1   0 0 0 0  0  0  0   0   0   0]
+  //  [0 0 0  0  0  0   0   0   1 0 0 0  0  0  0   0   0   0]
+  //  [0 0 0  0  0  0   0   0   0 1 0 0 dt  0  0 dt2   0   0]
+  //  [0 0 0  0  0  0   0   0   0 0 1 0  0 dt  0   0 dt2   0]
+  //  [0 0 0  0  0  0   0   0   0 0 0 1  0  0 dt   0   0 dt2]
+  //  [0 0 0  0  0  0   0   0   0 0 0 0  1  0  0  dt   0   0]
+  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  1  0   0  dt   0]
+  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  0  1   0   0  dt]
+  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  0  0   1   0   0]
+  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  0  0   0   1   0]
+  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  0  0   0   0   1]
+  // position
+  KF.transitionMatrix.at<double>(0,3) = dt;
+  KF.transitionMatrix.at<double>(1,4) = dt;
+  KF.transitionMatrix.at<double>(2,5) = dt;
+  KF.transitionMatrix.at<double>(3,6) = dt;
+  KF.transitionMatrix.at<double>(4,7) = dt;
+  KF.transitionMatrix.at<double>(5,8) = dt;
+  KF.transitionMatrix.at<double>(0,6) = 0.5*pow(dt,2);
+  KF.transitionMatrix.at<double>(1,7) = 0.5*pow(dt,2);
+  KF.transitionMatrix.at<double>(2,8) = 0.5*pow(dt,2);
+  // orientation
+  KF.transitionMatrix.at<double>(9,12) = dt;
+  KF.transitionMatrix.at<double>(10,13) = dt;
+  KF.transitionMatrix.at<double>(11,14) = dt;
+  KF.transitionMatrix.at<double>(12,15) = dt;
+  KF.transitionMatrix.at<double>(13,16) = dt;
+  KF.transitionMatrix.at<double>(14,17) = dt;
+  KF.transitionMatrix.at<double>(9,15) = 0.5*pow(dt,2);
+  KF.transitionMatrix.at<double>(10,16) = 0.5*pow(dt,2);
+  KF.transitionMatrix.at<double>(11,17) = 0.5*pow(dt,2);
+	   /* MEASUREMENT MODEL */
+  //  [1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+  //  [0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+  //  [0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+  //  [0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0]
+  //  [0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0]
+  //  [0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0]
+  KF.measurementMatrix.at<double>(0,0) = 1;  // x
+  KF.measurementMatrix.at<double>(1,1) = 1;  // y
+  KF.measurementMatrix.at<double>(2,2) = 1;  // z
+  KF.measurementMatrix.at<double>(3,9) = 1;  // roll
+  KF.measurementMatrix.at<double>(4,10) = 1; // pitch
+  KF.measurementMatrix.at<double>(5,11) = 1; // yaw
+}
+
+
+// Converts a given Rotation Matrix to Euler angles
+cv::Mat rot2euler(const cv::Mat & rotationMatrix)
+{
+  cv::Mat euler(3,1,CV_64F);
+
+  double m00 = rotationMatrix.at<double>(0,0);
+  double m02 = rotationMatrix.at<double>(0,2);
+  double m10 = rotationMatrix.at<double>(1,0);
+  double m11 = rotationMatrix.at<double>(1,1);
+  double m12 = rotationMatrix.at<double>(1,2);
+  double m20 = rotationMatrix.at<double>(2,0);
+  double m22 = rotationMatrix.at<double>(2,2);
+
+  double x, y, z;
+
+  // Assuming the angles are in radians.
+  if (m10 > 0.998) { // singularity at north pole
+	x = 0;
+	y = CV_PI/2;
+	z = atan2(m02,m22);
+  }
+  else if (m10 < -0.998) { // singularity at south pole
+	x = 0;
+	y = -CV_PI/2;
+	z = atan2(m02,m22);
+  }
+  else
+  {
+	x = atan2(-m12,m11);
+	y = asin(m10);
+	z = atan2(-m20,m00);
+  }
+
+  euler.at<double>(0) = x;
+  euler.at<double>(1) = y;
+  euler.at<double>(2) = z;
+
+  return euler;
+}
+
+// Converts a given Euler angles to Rotation Matrix
+cv::Mat euler2rot(const cv::Mat & euler)
+{
+  cv::Mat rotationMatrix(3,3,CV_64F);
+
+  double x = euler.at<double>(0);
+  double y = euler.at<double>(1);
+  double z = euler.at<double>(2);
+
+  // Assuming the angles are in radians.
+  double ch = cos(z);
+  double sh = sin(z);
+  double ca = cos(y);
+  double sa = sin(y);
+  double cb = cos(x);
+  double sb = sin(x);
+
+  double m00, m01, m02, m10, m11, m12, m20, m21, m22;
+
+  m00 = ch * ca;
+  m01 = sh*sb - ch*sa*cb;
+  m02 = ch*sa*sb + sh*cb;
+  m10 = sa;
+  m11 = ca*cb;
+  m12 = -ca*sb;
+  m20 = -sh*ca;
+  m21 = sh*sa*cb + ch*sb;
+  m22 = -sh*sa*sb + ch*cb;
+
+  rotationMatrix.at<double>(0,0) = m00;
+  rotationMatrix.at<double>(0,1) = m01;
+  rotationMatrix.at<double>(0,2) = m02;
+  rotationMatrix.at<double>(1,0) = m10;
+  rotationMatrix.at<double>(1,1) = m11;
+  rotationMatrix.at<double>(1,2) = m12;
+  rotationMatrix.at<double>(2,0) = m20;
+  rotationMatrix.at<double>(2,1) = m21;
+  rotationMatrix.at<double>(2,2) = m22;
+
+  return rotationMatrix;
+}
+
+
+void fillMeasurements( cv::Mat &measurements,
+				   const cv::Mat &translation_measured, const cv::Mat &rotation_measured)
+{
+	// Convert rotation matrix to euler angles
+	cv::Mat measured_eulers(3, 1, CV_64F);
+	measured_eulers = rot2euler(rotation_measured);
+	// Set measurement to predict
+	measurements.at<double>(0) = translation_measured.at<double>(0); // x
+	measurements.at<double>(1) = translation_measured.at<double>(1); // y
+	measurements.at<double>(2) = translation_measured.at<double>(2); // z
+	measurements.at<double>(3) = measured_eulers.at<double>(0);      // roll
+	measurements.at<double>(4) = measured_eulers.at<double>(1);      // pitch
+	measurements.at<double>(5) = measured_eulers.at<double>(2);      // yaw
+}
+
+
+void updateKalmanFilter( cv::KalmanFilter &KF, cv::Mat &measurement,
+					 cv::Mat &translation_estimated, cv::Mat &rotation_estimated )
+{
+	// First predict, to update the internal statePre variable
+	cv::Mat prediction = KF.predict();
+	// The "correct" phase that is going to use the predicted value and our measurement
+	cv::Mat estimated = KF.correct(measurement);
+	// Estimated translation
+	translation_estimated.at<double>(0) = estimated.at<double>(0);
+	translation_estimated.at<double>(1) = estimated.at<double>(1);
+	translation_estimated.at<double>(2) = estimated.at<double>(2);
+	// Estimated euler angles
+	cv::Mat eulers_estimated(3, 1, CV_64F);
+	eulers_estimated.at<double>(0) = estimated.at<double>(9);
+	eulers_estimated.at<double>(1) = estimated.at<double>(10);
+	eulers_estimated.at<double>(2) = estimated.at<double>(11);
+	// Convert estimated quaternion to rotation matrix
+	rotation_estimated = euler2rot(eulers_estimated);
+}
+
+
+/**
+ * @brief estimated_pose Returns estimated object pose in cartesian frame
+ */
+geometry_msgs::Pose kalman_pose_estimation(geometry_msgs::Pose previous_pose_, geometry_msgs::Pose measured_pose_) {
+
+	// TODO: create kalman filter for each estimated object separatelly.
+	cv::KalmanFilter KF;         // instantiate Kalman Filter
+	int nStates = 18;            // the number of states
+	int nMeasurements = 6;       // the number of measured states
+	int nInputs = 0;             // the number of action control
+	double dt = 0.125;           // time between measurements (1/FPS)
+	initKalmanFilter(KF, nStates, nMeasurements, nInputs, dt);    // init function
+	cv::Mat measurements(nMeasurements, 1, CV_64F);
+	measurements.setTo(cv::Scalar(0));
+
+	// Get object pose in sensor frame.
+	tf::Transform measured_tf;
+	tf::poseMsgToTF (measured_pose_ , measured_tf);
+//	tf::btMatrix3x3 measured_rot = measured_tf.getBasis();
+
+	// Get the measured translation
+	cv::Mat translation_measured(3, 1, CV_64F);
+	// translation_measured = ... TODO!
+	// Get the measured rotation
+	cv::Mat rotation_measured(3, 3, CV_64F);
+	//rotation_measured = ... TODO!
+	// fill the measurements vector
+	fillMeasurements(measurements, translation_measured, rotation_measured);
+
+	// Instantiate estimated translation and rotation
+	cv::Mat translation_estimated(3, 1, CV_64F);
+	cv::Mat rotation_estimated(3, 3, CV_64F);
+	// update the Kalman filter with good measurements
+	updateKalmanFilter( KF, measurements, translation_estimated, rotation_estimated);
+
+	geometry_msgs::Pose estimated_pose;
+	return estimated_pose;
+}
 
 
 /**
@@ -266,18 +449,20 @@ void recognizedObjectPoseUpdateCallback(const object_recognition_msgs::Recognize
 			// Update old object pose wrt to world coordinate frame.
 			geometry_msgs::Pose tmp_msg_pose = sensorToWorlMsgPose(object_.pose.pose.pose, world_sensor_tf);
 
-			// TODO: Kalman filter!
+			// TODO: get kalman filter for a given object!
+			//geometry_msgs::Pose estimated_pose = kalman_pose_estimation(estimated_objects[index].pose.pose.pose, tmp_msg_pose);
+			// Compute pose update and modify world_sensor_tf - TODO!
 
 			// Transform the object pose.
 			estimated_objects[index].pose.pose.pose = tmp_msg_pose;
+
+
 			// Transform the associated mesh pose.
 			estimated_objects[index].bounding_mesh.vertices.clear();
 			// Add transformed vertices one by one.
 			for (size_t pt_i=0; pt_i < object_.bounding_mesh.vertices.size(); pt_i++) {
 				estimated_objects[index].bounding_mesh.vertices.push_back(sensorToWorldMsgPoint(object_.bounding_mesh.vertices[pt_i], world_sensor_tf));
 			}//: for
-
-
 
 		} else {
 			// If not - create new "object instance".
@@ -303,6 +488,9 @@ void recognizedObjectPoseUpdateCallback(const object_recognition_msgs::Recognize
 
 			// Add object to list.
 			estimated_objects.push_back(tmp_object);
+
+			// TODO: create kalman filter for each estimated object separatelly.
+
 		}//: else
 
 
@@ -439,60 +627,6 @@ int main(int argc, char **argv)
 	while (ros::ok())
 	{
 		broadcastRecognizedObjectsTFs();
-/*
-		// TRIANGLE_LIST marker test!
-		visualization_msgs::Marker marker;
-		marker.header.frame_id = world_frame_id;
-		marker.header.stamp = ros::Time();
-		marker.ns = "marker_test_triangle_list";
-		marker.id = 0;
-		marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
-		marker.action = visualization_msgs::Marker::ADD;
-		marker.pose.position.x = 0.0;
-		marker.pose.position.y = 0.0;
-		marker.pose.position.z = 0.0;
-		marker.pose.orientation.x = 0.0;
-		marker.pose.orientation.y = 0.0;
-		marker.pose.orientation.z = 0.0;
-		marker.pose.orientation.w = 1.0;
-		marker.scale.x = 1.0;
-		marker.scale.y = 1.0;
-		marker.scale.z = 1.0;
-		for (int x = 0; x < 10; ++x)
-		{
-			  for (int y = 0; y < 10; ++y)
-			{
-			  for (int z = 0; z < 10; ++z)
-				{
-				  geometry_msgs::Point p;
-				p.x = x * 0.1f;
-				p.y = y * 0.1f;
-				p.z = z * 0.1f;
-				geometry_msgs::Point p2 = p;
-				p2.x = p.x + 0.05;
-
-				geometry_msgs::Point p3 = p;
-				p3.x = p2.x;
-				p3.z = p.z + 0.05;
-
-				marker.points.push_back(p);
-				marker.points.push_back(p2);
-				marker.points.push_back(p3);
-
-				std_msgs::ColorRGBA c;
-				c.r = x * 0.1;
-				c.g = y * 0.1;
-				c.b = z * 0.1;
-				c.a = 1.0;
-				marker.colors.push_back(c);
-				marker.colors.push_back(c);
-				marker.colors.push_back(c);
-				}
-			}
-		}
-		vis_marker_publisher.publish( marker );
-*/
-
 		ros::spinOnce();
 		r.sleep();
 	}
