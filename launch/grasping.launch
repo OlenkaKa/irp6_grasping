@@ -1,0 +1,30 @@
+<launch>
+  <!-- DisCODe -->
+  <node 
+    name="$(anon discode)"
+    pkg="irp6_grasping"
+    type="discode"
+    launch-prefix="xterm -e" />
+
+  <!-- Scene state estimation -->
+  <node
+    name="$(anon pose_estimation)"
+    pkg="irp6_grasping"
+    type="pose_estimation"
+    launch-prefix="xterm -e" />
+
+  <!-- TF broadcaster -->
+  <node
+    name="$(anon tf_broadcaster)"
+    pkg="irp6_grasping"
+    type="tf_broadcaster.py"
+    launch-prefix="xterm -e" />
+
+  <!-- Object picking task -->
+  <node
+    name="$(anon irp6_grasping)"
+    pkg="irp6_grasping"
+    type="irp6_grasping.py"
+    output="screen" />
+
+</launch>

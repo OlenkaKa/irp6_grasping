@@ -1,0 +1,7 @@
+<launch>
+  <param name="robot_name" value="Irp6p" />
+  <param name="kinect_optical_frame" value="/p_kinect_optical_frame" />
+  <param name="world_frame_id" value="/pl_base" />
+
+  <include file="$(find irp6_grasping)/launch/grasping.launch" />
+</launch>

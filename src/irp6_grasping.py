@@ -125,11 +125,25 @@ def generate_pregrasp( selected_grasp ):
 
 
 if __name__ == "__main__":
+	half_pi = math.pi/2
+
+	# Choose robot
+	robot_name = rospy.get_param('robot_name')
+	print '%s robot choosed' % robot_name
+
+	if robot_name == 'Irp6ot':
+		irpos = IRPOS('irp6ot_grasping', 'Irp6ot', 7, 'irp6ot_manager')
+		front_desired_joints = [0, 0, -half_pi, 0, 0, 3*half_pi, -half_pi]
+	elif robot_name == 'Irp6p':
+		irpos = IRPOS('irp6p_grasping', 'Irp6p', 6, 'irp6p_manager')
+		front_desired_joints = [0, -half_pi, 0, 0, 3*half_pi, -half_pi]
+	else:
+		print 'Incorrect robot name'
+		sys.exit()
+
 	# Initialize node
 	#rospy.init_node('irp6_grasping')
 	#Initialize IRPOS for IRp6-ot robot - it also initializes ROS NODE(!)
-	irpos = IRPOS("irp6ot_grasping", "Irp6ot", 7,'irp6ot_manager')
-	# Initialize broadcaster
 	br = tf.TransformBroadcaster()
 	# SLEEP REQUIRED FOR BROADCASTER TO INITIALIZE PROPERLY!!!!
 	time.sleep(1)
@@ -143,18 +157,16 @@ if __name__ == "__main__":
 	#print ' +--  Grasp 5: ',predefined_grasps[0][2][5]
 	#br.sendTransform((1, 1, 0), tf.transformations.quaternion_from_euler(0, 0, 0), rospy.Time.now(), "/test2", "world")
 	while (1):
-		# Move IRp6-ot to front position.
-		half_pi = math.pi/2
+		# Move robot to front position.
 		# Get current joint position.
-		front_desired_joints = [0, 0, -half_pi, 0, 0, 3*half_pi, -half_pi]
 		current_joints = irpos.get_joint_position()
 		# Compare joint positions.
 		diff = np.array(front_desired_joints[1:6]) - np.array(current_joints[1:6])
 		if np.amax(np.absolute(diff)) > 0.01:
-			print 'Moving IRp-6ot to front position'
+			print 'Moving %s to front position' % robot_name
 			irpos.move_to_joint_position(front_desired_joints, 10.00)
 		else:
-			print 'IRp-6ot standing in front position'
+			print '%s standing in front position' % robot_name
 		# Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
 		oids = get_recognized_objects_list(rospy.Time(1), 0)
 		# Check if there are any objects on the list.

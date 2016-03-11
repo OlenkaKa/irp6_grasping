@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Task>
+    <!-- Reference task information -->
+    <Reference>
+        <Author>
+            <name>Tomasz Kornuta</name>
+            <link></link>
+        </Author>
+
+        <Description>
+            <brief>Taks for object recognition from and publishing to ROS.</brief>
+            <full>PCL viewer displaying scene acquired from Track Kinect along with SOMs (SIFT Object Models) loaded from JSON files, matched against the scene and grouped into clusters, verified and published to ROS by proxy.</full>
+        </Description>
+    </Reference>
+
+
+    <!-- Task definition -->
+    <Subtasks>
+        <Subtask name="Processing">
+            <Executor name="Exec1"  period="1">
+
+                <!-- Scene -->
+                <Component name="CameraInfo" type="CvCoreTypes:CameraInfoProvider" priority="1" bump="0">
+                    <param name="width">640</param>
+                    <param name="height">480</param>
+                    <param name="camera_matrix">585.3355706289801, 0, 339.6132765828488 ; 0, 580.8484240199551, 283.3159577214985 ; 0, 0, 1</param>
+                    <param name="dist_coeffs">0.2356798319246242, -0.3163045855478298, 0.02124977108390639, 0.01900397477301861, 0</param>
+                </Component>
+
+                <Component name="Kinect" type="CameraNUI:CameraNUI" priority="2" bump="0">
+                    <param name="sync">1</param>
+                </Component>
+
+                <!-- Models -->
+                <Component name="SOMJSONReader" type="SIFTObjectModel:SOMJSONReader" priority="10" bump="0">
+                    <param name="filenames">/home/tkornuta/discode_ecovi/DCL/SORecognition/data/models/ahmad1.json;/home/tkornuta/discode_ecovi/DCL/SORecognition/data/models/herbapol_mieta1.json;/home/tkornuta/discode_ecovi/DCL/SORecognition/data/models/lipton_earl_grey_classic1.json;/home/tkornuta/discode_ecovi/DCL/SORecognition/data/models/lipton_green_tea_citrus_model.json</param>
+                </Component>
+
+                <!-- Processing -->
+                <Component name="SIFT" type="CvBasic:CvSIFT" priority="20" bump="0">
+                </Component>
+
+                <Component name="Converter" type="PCL:DepthConverter" priority="21" bump="0">
+                </Component>
+
+                <Component name="FeatureCloudConverter" type="SIFTObjectModel:FeatureCloudConverter" priority="22" bump="0">
+                </Component>
+
+                <!-- Correspondences -->
+                <Component name="CorrespondenceEstimation" type="Registration:CorrespondenceEstimation" priority="30" bump="0">
+                    <param name="rejection.use">0</param>
+                    <param name="rejection.max_distance">0.01</param>
+                </Component>
+
+                <Component name="CorrespondenceGrouping" type="SORecognition:CorrespondenceGrouping" priority="31" bump="0">
+                </Component>
+
+                <Component name="CloudTransformer" type="PCL:CloudTransformer" priority="32" bump="0">
+                </Component>
+
+                <Component name="HypothesisVerification" type="SORecognition:HypothesisVerification" priority="32" bump="0">
+                </Component>
+
+                <Component name="ROSProxy" type="SORecognition:ROSProxy" priority="33" bump="0">
+                    <param name="parent_frame">/t_kinect_optical_frame</param>
+                </Component>
+
+                <!-- Visualization and saving -->
+                <Component name="Viewer" type="PCL:CloudViewer" priority="100" bump="0">
+                    <param name="scene.display_coordinate_system">false</param>
+                </Component>
+
+            </Executor>
+        </Subtask>
+    </Subtasks>
+
+    <!-- Pipes connecting datastreams -->
+    <DataStreams>
+
+        <!--Scene-->
+        <Source name="CameraInfo.out_camera_info">
+            <sink>Converter.in_camera_info</sink>
+            <sink>FeatureCloudConverter.in_camera_info</sink>
+        </Source>
+
+        <Source name="Kinect.out_img">
+            <sink>SIFT.in_img</sink>
+            <sink>Converter.in_color</sink>
+        </Source>
+
+        <Source name="Kinect.out_depth">
+            <sink>Converter.in_depth</sink> <!--_xyz-->
+            <sink>FeatureCloudConverter.in_depth</sink>
+        </Source>
+
+
+        <!-- Proccesing -->
+        <Source name="SIFT.out_descriptors">
+            <sink>FeatureCloudConverter.in_descriptors</sink>
+        </Source>
+
+        <Source name="SIFT.out_features">
+            <sink>FeatureCloudConverter.in_features</sink>
+        </Source>
+
+        <Source name="Converter.out_cloud_xyzrgb">
+            <sink>Viewer.in_scene_cloud_xyzrgb</sink>
+            <sink>CorrespondenceGrouping.in_scene_cloud_xyzrgb</sink>
+            <sink>HypothesisVerification.in_scene_cloud_xyzrgb</sink>
+        </Source>
+
+        <Source name="FeatureCloudConverter.out_cloud_xyzsift">
+            <sink>Viewer.in_scene_cloud_xyzsift</sink>
+            <sink>CorrespondenceEstimation.in_scene_cloud_xyzsift</sink>
+            <sink>CorrespondenceGrouping.in_scene_cloud_xyzsift</sink>
+        </Source>
+
+
+        <!-- Model load -->
+
+        <Source name="SOMJSONReader.out_model_clouds_xyzrgb">
+            <sink>CorrespondenceGrouping.in_model_clouds_xyzrgb</sink>
+        </Source>
+
+        <Source name="SOMJSONReader.out_model_clouds_xyzsift">
+            <sink>CorrespondenceEstimation.in_model_clouds_xyzsift</sink>
+            <sink>CorrespondenceGrouping.in_model_clouds_xyzsift</sink>
+        </Source>
+
+        <Source name="SOMJSONReader.out_model_labels">
+            <sink>CorrespondenceGrouping.in_model_labels</sink>
+        </Source>
+
+        <Source name="SOMJSONReader.out_model_vertices_xyz">
+            <sink>CorrespondenceGrouping.in_model_vertices_xyz</sink>
+        </Source>
+
+        <Source name="SOMJSONReader.out_model_triangles">
+            <sink>CorrespondenceGrouping.in_model_triangles</sink>
+        </Source>
+
+        <Source name="SOMJSONReader.out_model_bounding_boxes">
+            <sink>CorrespondenceGrouping.in_model_bounding_boxes</sink>
+        </Source>
+
+        <Source name="CorrespondenceEstimation.out_models_scene_correspondences">
+            <sink>CorrespondenceGrouping.in_models_scene_correspondences</sink>
+        </Source>
+
+
+        <!--Correspondence grouping outputs-->
+
+        <Source name="CorrespondenceGrouping.out_cluster_clouds_xyzrgb">
+            <sink>CloudTransformer.in_clouds_xyzrgb</sink>
+        </Source>
+
+        <Source name="CorrespondenceGrouping.out_cluster_clouds_xyzsift">
+            <sink>CloudTransformer.in_clouds_xyzsift</sink>
+        </Source>
+
+        <Source name="CorrespondenceGrouping.out_cluster_poses">
+            <sink>CloudTransformer.in_hms</sink>
+            <sink>HypothesisVerification.in_cluster_poses</sink>
+        </Source>
+
+
+        <Source name="CorrespondenceGrouping.out_cluster_vertices_xyz">
+            <sink>CloudTransformer.in_clouds_xyz</sink>
+        </Source>
+
+        <Source name="CorrespondenceGrouping.out_cluster_triangles">
+            <sink>HypothesisVerification.in_cluster_triangles</sink>
+        </Source>
+
+        <Source name="CorrespondenceGrouping.out_cluster_bounding_boxes">
+            <sink>HypothesisVerification.in_cluster_bounding_boxes</sink>
+        </Source>
+
+
+        <Source name="CorrespondenceGrouping.out_cluster_labels">
+            <sink>HypothesisVerification.in_cluster_labels</sink>
+        </Source>
+
+        <Source name="CorrespondenceGrouping.out_clusters_scene_correspondences">
+            <sink>HypothesisVerification.in_clusters_scene_correspondences</sink>
+        </Source>
+
+        <Source name="CorrespondenceGrouping.out_cluster_confidences">
+            <sink>HypothesisVerification.in_cluster_confidences</sink>
+        </Source>
+
+
+        <!-- Cloud transformer outputs -->
+
+        <Source name="CloudTransformer.out_clouds_xyzrgb">
+            <sink>HypothesisVerification.in_cluster_clouds_xyzrgb</sink>
+        </Source>
+
+        <Source name="CloudTransformer.out_clouds_xyzsift">
+            <sink>HypothesisVerification.in_cluster_clouds_xyzsift</sink>
+        </Source>
+
+        <Source name="CloudTransformer.out_clouds_xyz">
+            <sink>HypothesisVerification.in_cluster_vertices_xyz</sink>
+        </Source>
+
+
+        <!-- Verification, viewer and ROS Proxy -->
+
+        <Source name="HypothesisVerification.out_object_clouds_xyzrgb">
+            <sink>Viewer.in_object_clouds_xyzrgb</sink>
+        </Source>
+
+        <Source name="HypothesisVerification.out_object_clouds_xyzsift">
+            <sink>Viewer.in_object_clouds_xyzsift</sink>
+        </Source>
+
+        <Source name="HypothesisVerification.out_object_vertices_xyz">
+            <sink>Viewer.in_object_vertices_xyz</sink>
+            <sink>ROSProxy.in_object_vertices_xyz</sink>
+        </Source>
+
+        <Source name="HypothesisVerification.out_object_triangles">
+            <sink>Viewer.in_object_triangles</sink>
+            <sink>ROSProxy.in_object_triangles</sink>
+        </Source>
+
+        <Source name="HypothesisVerification.out_object_bounding_boxes">
+            <sink>Viewer.in_object_bounding_boxes</sink>
+        </Source>
+
+
+        <Source name="HypothesisVerification.out_object_labels">
+            <sink>Viewer.in_object_labels</sink>
+            <sink>ROSProxy.in_object_labels</sink>
+        </Source>
+
+        <Source name="HypothesisVerification.out_objects_scene_correspondences">
+            <sink>Viewer.in_objects_scene_correspondences</sink>
+        </Source>
+
+        <Source name="HypothesisVerification.out_object_poses">
+            <sink>Viewer.in_object_poses</sink>
+            <sink>ROSProxy.in_object_poses</sink>
+        </Source>
+
+        <Source name="HypothesisVerification.out_object_confidences">
+            <sink>ROSProxy.in_object_confidences</sink>
+        </Source>
+
+       </DataStreams>
+</Task>
+
