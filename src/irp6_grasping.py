@@ -136,7 +136,7 @@ if __name__ == "__main__":
 		front_desired_joints = [0, 0, -half_pi, 0, 0, 3*half_pi, -half_pi]
 	elif robot_name == 'Irp6p':
 		irpos = IRPOS('irp6p_grasping', 'Irp6p', 6, 'irp6p_manager')
-		front_desired_joints = [0, -half_pi, 0, 0, 3*half_pi, -half_pi]
+		front_desired_joints = [0, -half_pi, 0, 0, 3*half_pi, half_pi]
 	else:
 		print 'Incorrect robot name'
 		sys.exit()
@@ -164,7 +164,7 @@ if __name__ == "__main__":
 		diff = np.array(front_desired_joints[1:6]) - np.array(current_joints[1:6])
 		if np.amax(np.absolute(diff)) > 0.01:
 			print 'Moving %s to front position' % robot_name
-			irpos.move_to_joint_position(front_desired_joints, 10.00)
+			irpos.move_to_joint_position(front_desired_joints, 20.00)
 		else:
 			print '%s standing in front position' % robot_name
 		# Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
@@ -217,7 +217,7 @@ if __name__ == "__main__":
 		pregrasp = generate_pregrasp(selected_grasp)
 		broadcast_pose(br, pregrasp[1], pregrasp[0], ret.object.header.frame_id)
 		# Move to pregrasp pose.
-		irpos.move_to_cartesian_pose(10.0,pm.toMsg(pregrasp[1]))
+		irpos.move_to_cartesian_pose(20.0,pm.toMsg(pregrasp[1]))
 		# Set pregrasp distance between fingers.
 		irpos.tfg_to_joint_position(pregrasp[2], 3.0)
 		# Move towards the object.
