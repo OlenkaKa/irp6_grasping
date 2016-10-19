@@ -1,26 +1,27 @@
 #!/usr/bin/env bash
 # Wrapper script
 
-p_task="`rospack find irp6_grasping`/src/P-KinectRecognizeObjectsROS.xml"
-t_task="`rospack find irp6_grasping`/src/T-KinectRecognizeObjectsROS.xml"
+#p_task="`rospack find irp6_grasping`/src/P-KinectRecognizeObjectsROS.xml"
+#t_task="`rospack find irp6_grasping`/src/T-KinectRecognizeObjectsROS.xml"
 #task="SORecognition:KinectRecognizeObjectsROS"
-log_level="3"
-args=""
+#log_level="3"
+#args=""
 
 # Kinect optical frame link
-robot=$(rosparam get robot_name)
+#robot=$(rosparam get robot_name)
 
-if [ $robot == "Irp6ot" ]; then
-  task=$t_task
-elif [ $robot == "Irp6p" ]; then
-  task=$p_task
-else
-  echo "Incorrect robot name"
-  exit -1
-fi
+#if [ $robot == "Irp6ot" ]; then
+#  task=$t_task
+#elif [ $robot == "Irp6p" ]; then
+#  task=$p_task
+#else
+#  echo "Incorrect robot name"
+#  exit -1
+#fi
 
 
-discode_args="-T$task -L$log_level $args"
+#discode_args="-T$task -L$log_level $args"
 
-echo "Running DisCODe with parameters: [$discode_args]"
-discode $discode_args
+#echo "Running DisCODe with parameters: [$discode_args]"
+#discode $discode_args
+discode -T ObjectRecognition:RGBImageRecognition

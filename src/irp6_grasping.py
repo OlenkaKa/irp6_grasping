@@ -21,7 +21,7 @@ from irpos import *
 # Initialize predefined grasps in the form of:
 # object_id, size(along x,y,z) in m, [grasp_name, translation, rotation (wrt to model reference frame), distance between fingers]
 predefined_grasps = [
-	['/herbapol_mieta1_object', PyKDL.Vector(0.140, 0.075, 0.064),
+	['herbapol_mieta1', PyKDL.Vector(0.140, 0.075, 0.064),
 		[['grasp_top', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi, 0, 0),PyKDL.Vector(0.07, -0.0375, 0.064)), 0.075],
 		['grasp_bottom', PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.07, -0.0375, 0.0)), 0.075],
 		['grasp_left', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi/2, 0, math.pi/2),PyKDL.Vector(0.0, -0.0375, 0.032)), 0.064],
@@ -32,7 +32,7 @@ predefined_grasps = [
 ]
 # width, height, depth (along x,y,z)
 object_models = [
-	['/herbapol_mieta1_object', PyKDL.Vector(0.140, -0.075, 0.064)],
+	['herbapol_mieta1', PyKDL.Vector(0.140, -0.075, 0.064)],
 	['/ahmad_object', PyKDL.Vector(0.125, -0.085, 0.085)],
 	['/lipton_earl_grey_lemon', PyKDL.Vector(0.149, -0.061, 0.040)]
 ]

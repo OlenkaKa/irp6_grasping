@@ -95,7 +95,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 #include_directories(include ${catkin_INCLUDE_DIRS})
-include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(${OpenCV_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
 
 ## Declare a cpp library
 # add_library(grasping
@@ -107,7 +107,7 @@ add_executable(pose_estimation src/pose_estimation.cpp)
 
 ## Add cmake tobject_recognition_msgsarget dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-add_dependencies(pose_estimation irp6_grasping_msgs_gencpp)
+#add_dependencies(pose_estimation irp6_grasping_msgs_gencpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(pose_estimation ${catkin_LIBRARIES} ${object_recognition_msgs_LIBRARIES} ${OpenCV_LIBRARIES})
