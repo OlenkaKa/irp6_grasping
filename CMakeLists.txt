@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
    tf
    irp6_grasping_msgs
 )
+
 find_package(OpenCV)
 
 ## System dependencies are found with CMake's conventions
@@ -95,7 +96,10 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 #include_directories(include ${catkin_INCLUDE_DIRS})
-include_directories(${OpenCV_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
+include_directories(include
+   ${catkin_INCLUDE_DIRS}
+   ${OpenCV_INCLUDE_DIRS}
+)
 
 ## Declare a cpp library
 # add_library(grasping
@@ -103,14 +107,21 @@ include_directories(${OpenCV_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
 # )
 
 ## Declare a cpp executable
-add_executable(pose_estimation src/pose_estimation.cpp)
+add_executable(pose_estimation
+   src/PoseEstimation.cpp
+   src/KalmanFilter.cpp
+)
 
 ## Add cmake tobject_recognition_msgsarget dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 #add_dependencies(pose_estimation irp6_grasping_msgs_gencpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(pose_estimation ${catkin_LIBRARIES} ${object_recognition_msgs_LIBRARIES} ${OpenCV_LIBRARIES})
+target_link_libraries(pose_estimation
+   ${catkin_LIBRARIES}
+   ${object_recognition_msgs_LIBRARIES}
+   ${OpenCV_LIBRARIES}
+)
 
 #############
 ## Install ##
