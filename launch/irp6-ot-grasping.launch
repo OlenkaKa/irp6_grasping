@@ -2,6 +2,7 @@
   <param name="robot_name" value="Irp6ot" />
   <param name="kinect_optical_frame" value="/t_kinect_optical_frame" />
   <param name="world_frame_id" value="/tl_base" />
+  <param name="use_kalman_filter" value="true" />
 
   <include file="$(find irp6_grasping)/launch/grasping.launch" />
 </launch>

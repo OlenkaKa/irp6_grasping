@@ -12,14 +12,18 @@
 
 #include <object_recognition_msgs/RecognizedObject.h>
 
+#include <irp6_grasping_msgs/EstimatePose.h>
 #include <irp6_grasping_msgs/GetRecognizedObjectPose.h>
 #include <irp6_grasping_msgs/GetRecognizedObjectsList.h>
+
+#include <boost/bind.hpp>
 
 #include "KalmanFilter.h"
 
 using namespace std;
 using namespace cv;
 
+ros::Subscriber recognized_object_sub;
 
 /// Marker publisher - used for displaying objects in rviz.
 ros::Publisher marker_publisher;
@@ -42,6 +46,7 @@ int minInliersKalman = 30;
 
 MyKalmanFilter kalman;
 Mat measurements;
+bool use_kalman_filter;
 
 
 /// Function transforms pose from one to another coordinate frame.
@@ -100,10 +105,15 @@ void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &s
 
         geometry_msgs::Pose sensor_object_world_pose = transformPose(sensor_object.pose.pose.pose,
                                                                      world_sensor_tf);
-        geometry_msgs::Pose estimated_pose = sensor_object_world_pose;
+        geometry_msgs::Pose estimated_pose;
 
-        kalman.fillMeasurements(sensor_object_world_pose, measurements);
-        kalman.updateKalmanFilter(measurements, estimated_pose);
+        if (use_kalman_filter) {
+            kalman.fillMeasurements(sensor_object_world_pose, measurements);
+            kalman.updateKalmanFilter(measurements, estimated_pose);
+        } else {
+            estimated_pose = sensor_object_world_pose;
+        }
+
 
         estimated_object.pose.pose.pose = estimated_pose;
 
@@ -216,6 +226,20 @@ void publishRecognizedObjects() {
 
 /// Service callbacks
 
+/// Service responsible for turning on/off pose estimation
+bool estimatePoseCallback(irp6_grasping_msgs::EstimatePose::Request &request,
+                          irp6_grasping_msgs::EstimatePose::Response &response,
+                          ros::NodeHandle &node_handle) {
+    if (request.calculate_pose) {
+        recognized_object_sub = node_handle.subscribe("recognized_objects", 1000, recognizedObjectCallback);
+        ROS_INFO("Start pose estimation");
+    } else {
+        recognized_object_sub.shutdown();
+        ROS_INFO("Stop pose estimation");
+    }
+    return true;
+}
+
 /// Service responsible for returning recognized object with given object_id and not older that given age.
 bool returnRecognizedObjectPoseServiceCallback(irp6_grasping_msgs::GetRecognizedObjectPose::Request &request,
                                                irp6_grasping_msgs::GetRecognizedObjectPose::Response &response) {
@@ -289,6 +313,8 @@ int main(int argc, char **argv) {
     nh.param<string>("world_frame_id", world_frame_id, "/tl_base");
     nh.param<string>("marker_namespace", marker_namespace, "object_marker_namespace");
     nh.param<double>("marker_max_age", marker_max_age, 5.0);
+    nh.param<bool>("use_kalman_filter", use_kalman_filter, true);
+
     displayed_markers_number = 0;
 
     estimated_object.type.key = "herbapol_mieta1";
@@ -299,12 +325,13 @@ int main(int argc, char **argv) {
     measurements = Mat(nMeasurements, 1, CV_64F);
     measurements.setTo(Scalar(0));
 
-    // Recognized objects subscriber.
-    ros::Subscriber sub = nh.subscribe("recognized_objects", 1000, recognizedObjectCallback);
-
     // Initialize services.
+    ros::ServiceServer estimate_pose = nh.advertiseService<irp6_grasping_msgs::EstimatePose::Request, irp6_grasping_msgs::EstimatePose::Response>(
+            "estimate_pose", boost::bind(estimatePoseCallback, _1, _2, boost::ref(nh)));
+
     ros::ServiceServer object_pose_service = nh.advertiseService("return_recognized_object_pose",
                                                                  returnRecognizedObjectPoseServiceCallback);
+
     ros::ServiceServer object_list_service = nh.advertiseService("return_recognized_objects_list",
                                                                  returnRecognizedObjectsListServiceCallback);
 

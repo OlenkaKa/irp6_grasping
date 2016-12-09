@@ -41,6 +41,15 @@ object_models = [
 grasp_distance_tolerance = 0.002
 
 
+def set_estimate_pose(enable_pose_estimation):
+    rospy.wait_for_service('estimate_pose')
+    try:
+        estimate_pose = rospy.ServiceProxy('estimate_pose', EstimatePose)
+        return estimate_pose(enable_pose_estimation)
+    except rospy.ServiceException, e:
+        print "Service call failed: %s" % e
+
+
 # Function call service in order to get list of recignized objects.
 # age - limitation to objects being perceived within last 'age' seconds
 # limit - limitation of number of objects (0 means that the limit is inactive)
@@ -125,6 +134,7 @@ def generate_pregrasp( selected_grasp ):
 
 
 if __name__ == "__main__":
+    set_estimate_pose(False)
     half_pi = math.pi/2
 
     # Choose robot
@@ -169,6 +179,7 @@ if __name__ == "__main__":
         else:
             print '%s standing in front position' % robot_name
 
+        set_estimate_pose(True)
         irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.5), Quaternion(0.0, 0.0, 0.0, 1.0)))
         observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))
         # for j in range(40):
@@ -236,6 +247,7 @@ if __name__ == "__main__":
         # irpos.move_to_cartesian_pose(3.0,pm.toMsg(pregrasp[1]))
         # # Set pregrasp distance between fingers - drop object.
         # irpos.tfg_to_joint_position(pregrasp[2], 3.0)
+        set_estimate_pose(False)
         r.sleep()
 
         #end of program;)
