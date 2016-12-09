@@ -9,12 +9,25 @@
 
 // Header containing Kalman filter.
 #include <opencv2/video/tracking.hpp>
+#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Vector3.h>
 
-class KalmanFilter {
+class MyKalmanFilter {
 public:
-    KalmanFilter(int nStates, int nMeasurements, int nInputs, double dt);
+    /// Initialize Kalman Filter
+    void initKalmanFilter(int nStates, int nMeasurements, int nInputs, double dt);
+
+    /// Fill measurements based on mesured pose
+    static void fillMeasurements(const geometry_msgs::Pose &measured_pose, cv::Mat &measurements);
+
+    /// Update kalman filter and calculate estimated position
+    void updateKalmanFilter(const cv::Mat &measurement, geometry_msgs::Pose &estimated_pose);
+
 private:
     cv::KalmanFilter kf_;
+
+    static geometry_msgs::Vector3 quat2rot_(const geometry_msgs::Quaternion &quaternion);
+    static geometry_msgs::Quaternion rot2quat_(const geometry_msgs::Vector3 rpy);
 };
 
 #endif //IRP6_GRASPING_KALMANFILTER_H

@@ -6,7 +6,12 @@
 
 #include "KalmanFilter.h"
 
-KalmanFilter::KalmanFilter(int nStates, int nMeasurements, int nInputs, double dt) {
+#include <ros/ros.h>
+#include "tf/transform_datatypes.h"
+
+using namespace cv;
+
+void MyKalmanFilter::initKalmanFilter(int nStates, int nMeasurements, int nInputs, double dt) {
     kf_.init(nStates, nMeasurements, nInputs, CV_64F);                 // init Kalman Filter
     cv::setIdentity(kf_.processNoiseCov, cv::Scalar::all(1e-5));       // set process noise
     cv::setIdentity(kf_.measurementNoiseCov, cv::Scalar::all(1e-4));   // set measurement noise
@@ -69,4 +74,71 @@ KalmanFilter::KalmanFilter(int nStates, int nMeasurements, int nInputs, double d
     kf_.measurementMatrix.at<double>(3, 9) = 1;  // roll
     kf_.measurementMatrix.at<double>(4, 10) = 1; // pitch
     kf_.measurementMatrix.at<double>(5, 11) = 1; // yaw
+}
+
+void MyKalmanFilter::fillMeasurements(const geometry_msgs::Pose &measured_pose, cv::Mat &measurements) {
+    // Set measurement to predict
+    measurements.at<double>(0) = measured_pose.position.x; // x
+    measurements.at<double>(1) = measured_pose.position.y; // y
+    measurements.at<double>(2) = measured_pose.position.z; // z
+
+    geometry_msgs::Vector3 rpy = quat2rot_(measured_pose.orientation);
+    measurements.at<double>(3) = rpy.x;      // roll
+    measurements.at<double>(4) = rpy.y;      // pitch
+    measurements.at<double>(5) = rpy.z;      // yaw
+
+    ROS_INFO("Measured position: %f %f %f", measured_pose.position.x, measured_pose.position.y,
+             measured_pose.position.z);
+    ROS_INFO("Measured roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
+}
+
+
+void MyKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_msgs::Pose &estimated_pose) {
+    // First predict, to update the internal statePre variable
+    Mat prediction = kf_.predict();
+
+    // The "correct" phase that is going to use the predicted value and our measurement
+    Mat estimated = kf_.correct(measurement);
+
+    // Estimated translation
+    estimated_pose.position.x = estimated.at<double>(0);
+    estimated_pose.position.y = estimated.at<double>(1);
+    estimated_pose.position.z = estimated.at<double>(2);
+
+    // Estimated euler angles
+    geometry_msgs::Vector3 rpy;
+    rpy.x = estimated.at<double>(9);
+    rpy.y = estimated.at<double>(10);
+    rpy.z = estimated.at<double>(11);
+    estimated_pose.orientation = rot2quat_(rpy);
+
+    ROS_INFO("Estimated position: %f %f %f", estimated_pose.position.x, estimated_pose.position.y,
+             estimated_pose.position.z);
+    ROS_INFO("Estimated roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
+}
+
+geometry_msgs::Vector3 MyKalmanFilter::quat2rot_(const geometry_msgs::Quaternion &quaternion) {
+    tf::Quaternion tf_quaternion;
+    tf::quaternionMsgToTF(quaternion, tf_quaternion);
+
+    // the tf::Quaternion has a method to acess roll pitch and yaw
+    double roll, pitch, yaw;
+    tf::Matrix3x3(tf_quaternion).getRPY(roll, pitch, yaw);
+
+    // the found angles are written in a geometry_msgs::Vector3
+    geometry_msgs::Vector3 rpy;
+    rpy.x = roll;
+    rpy.y = pitch;
+    rpy.z = yaw;
+
+    return rpy;
+}
+
+geometry_msgs::Quaternion MyKalmanFilter::rot2quat_(const geometry_msgs::Vector3 rpy) {
+    // translate roll, pitch and yaw into a Quaternion
+    tf::Quaternion tf_quaternion;
+    tf_quaternion.setRPY(rpy.x, rpy.y, rpy.z);
+    geometry_msgs::Quaternion quaternion;
+    tf::quaternionTFToMsg(tf_quaternion, quaternion);
+    return quaternion;
 }

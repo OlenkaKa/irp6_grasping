@@ -18,6 +18,7 @@
 #include "KalmanFilter.h"
 
 using namespace std;
+using namespace cv;
 
 
 /// Marker publisher - used for displaying objects in rviz.
@@ -31,6 +32,16 @@ string world_frame_id;
 
 /// Object information in world coordinates
 object_recognition_msgs::RecognizedObject estimated_object;
+
+/// Kalman filer
+int nStates = 18;            // the number of states
+int nMeasurements = 6;       // the number of measured states
+int nInputs = 0;             // the number of action control
+double dt = 0.125;           // time between measurements (1/FPS)
+int minInliersKalman = 30;
+
+MyKalmanFilter kalman;
+Mat measurements;
 
 
 /// Function transforms pose from one to another coordinate frame.
@@ -89,9 +100,12 @@ void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &s
 
         geometry_msgs::Pose sensor_object_world_pose = transformPose(sensor_object.pose.pose.pose,
                                                                      world_sensor_tf);
+        geometry_msgs::Pose estimated_pose = sensor_object_world_pose;
 
-        // TODO kalman filter
-        estimated_object.pose.pose.pose = sensor_object_world_pose;
+        kalman.fillMeasurements(sensor_object_world_pose, measurements);
+        kalman.updateKalmanFilter(measurements, estimated_pose);
+
+        estimated_object.pose.pose.pose = estimated_pose;
 
         estimated_object.bounding_mesh.vertices.clear();
         for (size_t i = 0, size = sensor_object.bounding_mesh.vertices.size(); i < size; ++i) {
@@ -111,19 +125,63 @@ void deleteMarkers() {
     del_marker.action = visualization_msgs::Marker::DELETEALL;
     marker_publisher.publish(del_marker);
     displayed_markers_number = 0;
-//    for(size_t marker_i=0; marker_i < displayed_markers_size; marker_i++) {
+//    for (size_t marker_i = 0; marker_i < displayed_markers_size; marker_i++) {
 //        visualization_msgs::Marker del_marker;
 //        del_marker.ns = "marker_object_meshes";
 //        del_marker.id = marker_i;
 //        del_marker.header.frame_id = world_frame_id;
 //        del_marker.header.stamp = ros::Time();
 //        del_marker.action = visualization_msgs::Marker::DELETE;
-//        marker_publisher.publish( del_marker );
+//        marker_publisher.publish(del_marker);
 //    }
 }
 
 void createMarkers(const object_recognition_msgs::RecognizedObject &object) {
-    // TODO
+//    std_msgs::Header header = object.header;
+//    if (header.stamp < ros::Time::now() - ros::Duration(marker_max_age)) {
+//        return;
+//    }
+//
+//    shape_msgs::Mesh bounding_mesh = object.bounding_mesh;
+//    visualization_msgs::Marker marker;
+//
+//    marker.header = header;
+//    marker.ns = "marker_object_meshes";
+//    marker.id = displayed_markers_number++;
+//    marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
+//    marker.action = visualization_msgs::Marker::ADD;
+//    marker.scale.x = 1.0;
+//    marker.scale.y = 1.0;
+//    marker.scale.z = 1.0;
+//
+//    std_msgs::ColorRGBA c;
+//    c.r = (displayed_markers_number % 1 == 0);
+//    c.g = (displayed_markers_number % 2 == 0);
+//    c.b = (displayed_markers_number % 3 == 0);
+//    // Alpha (opacity).
+//    // c.a = 1.0f;
+//    size_t size = bounding_mesh.triangles.size();
+//
+//    // Iterate on mesh triangles.
+//    for (size_t i = 0; i < size; i++) {
+//        shape_msgs::MeshTriangle mt = bounding_mesh.triangles[i];
+//        // Add triangle vertices.
+//        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[0]]);
+//        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[1]]);
+//        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[2]]);
+//        // Add triangle colour
+//        std_msgs::ColorRGBA ct;
+//        ct.r = (float) (i + 1) / (size + 1) * c.r;
+//        ct.g = (float) (i + 1) / (size + 1) * c.g;
+//        ct.b = (float) (i + 1) / (size + 1) * c.b;
+//        // Alpha (opacity).
+//        ct.a = 1.0f;
+//
+//        marker.colors.push_back(ct);
+//        marker.colors.push_back(ct);
+//        marker.colors.push_back(ct);
+//    }
+//    marker_publisher.publish(marker);
 }
 
 bool inline estimatedObjectExists() {
@@ -236,6 +294,10 @@ int main(int argc, char **argv) {
     estimated_object.type.key = "herbapol_mieta1";
     estimated_object.header.frame_id = world_frame_id;
     estimated_object.pose.header.frame_id = world_frame_id;
+
+    kalman.initKalmanFilter(nStates, nMeasurements, nInputs, dt);
+    measurements = Mat(nMeasurements, 1, CV_64F);
+    measurements.setTo(Scalar(0));
 
     // Recognized objects subscriber.
     ros::Subscriber sub = nh.subscribe("recognized_objects", 1000, recognizedObjectCallback);
