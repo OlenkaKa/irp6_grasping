@@ -9,13 +9,17 @@
 
 // Header containing Kalman filter.
 #include <opencv2/video/tracking.hpp>
+
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Vector3.h>
 
-class MyKalmanFilter {
+class PoseKalmanFilter {
 public:
     /// Initialize Kalman Filter
-    void initKalmanFilter(int nStates, int nMeasurements, int nInputs, double dt);
+    void initKalmanFilter(double dt);
+
+    /// Initialize measurements - size, type
+    static void initMeasurements(cv::Mat &measurements);
 
     /// Fill measurements based on mesured pose
     static void fillMeasurements(const geometry_msgs::Pose &measured_pose, cv::Mat &measurements);

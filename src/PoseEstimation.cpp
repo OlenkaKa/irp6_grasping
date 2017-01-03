@@ -25,6 +25,8 @@ using namespace cv;
 
 ros::Subscriber recognized_object_sub;
 
+ros::Publisher recognized_object_pub;
+
 /// Marker publisher - used for displaying objects in rviz.
 ros::Publisher marker_publisher;
 string marker_namespace;
@@ -36,15 +38,16 @@ string world_frame_id;
 
 /// Object information in world coordinates
 object_recognition_msgs::RecognizedObject estimated_object;
+bool estimated_object_initialized;
+
+/// Min object confidence - all objects with less confidence are ignored
+double min_object_confidence;
 
 /// Kalman filer
-int nStates = 18;            // the number of states
-int nMeasurements = 6;       // the number of measured states
-int nInputs = 0;             // the number of action control
-double dt = 0.125;           // time between measurements (1/FPS)
-int minInliersKalman = 30;
+double dt = 0.033;           // time between measurements (1/FPS)
+int minInliersKalman = 30;   // TODO
 
-MyKalmanFilter kalman;
+PoseKalmanFilter kalman;
 Mat measurements;
 bool use_kalman_filter;
 
@@ -78,23 +81,41 @@ geometry_msgs::Point transformPoint(const geometry_msgs::Point &point, const tf:
     return result_point;
 }
 
-void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &sensor_object) {
+void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &received_sensor_object) {
     static tf::TransformListener tf_listener;
     static tf::StampedTransform world_sensor_tf;
+
+    object_recognition_msgs::RecognizedObject sensor_object = received_sensor_object;
 
     ROS_DEBUG("I received: %s in %s reference frame.", sensor_object.type.key.c_str(),
               sensor_object.pose.header.frame_id.c_str());
 
+    // TODO! what if we do not receive new object for a long time?
     if (estimated_object.type.key.compare(sensor_object.type.key) != 0) {
         ROS_INFO("New object %s ignored.", sensor_object.type.key.c_str());
-        return;
+        if (estimated_object_initialized) {
+            sensor_object = estimated_object;
+        } else {
+            return;
+        }
+    } else if (sensor_object.confidence < min_object_confidence) {
+        if (sensor_object.confidence < 0.001) {
+            return;
+        }
+
+        ROS_INFO("New object %s has low confidence.", sensor_object.type.key.c_str());
+        if (estimated_object_initialized) {
+            sensor_object = estimated_object;
+        }
     }
+    estimated_object_initialized = true;
 
     try {
         ROS_DEBUG("Getting transform from %s to %s", world_frame_id.c_str(),
                   sensor_object.pose.header.frame_id.c_str());
+        // TODO synchronize clock on gerwazy!
         tf_listener.lookupTransform(world_frame_id, sensor_object.pose.header.frame_id,
-                                    sensor_object.pose.header.stamp, world_sensor_tf);
+                                    /*sensor_object.pose.header.stamp*/ ros::Time(0), world_sensor_tf);
 
         // Update object information
         estimated_object.header.stamp = sensor_object.pose.header.stamp;
@@ -160,6 +181,7 @@ void createMarkers(const object_recognition_msgs::RecognizedObject &object) {
 //    marker.id = displayed_markers_number++;
 //    marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
 //    marker.action = visualization_msgs::Marker::ADD;
+//    marker.pose = object.pose.pose.pose;
 //    marker.scale.x = 1.0;
 //    marker.scale.y = 1.0;
 //    marker.scale.z = 1.0;
@@ -195,7 +217,7 @@ void createMarkers(const object_recognition_msgs::RecognizedObject &object) {
 }
 
 bool inline estimatedObjectExists() {
-    return estimated_object.type.key.compare("") != 0;
+    return estimated_object_initialized;
 }
 
 void publishRecognizedObjects() {
@@ -221,6 +243,8 @@ void publishRecognizedObjects() {
 //        publish_object_mesh_as_marker(displayed_markers_number, estimated_object.header, estimated_object.bounding_mesh);
     br.sendTransform(stamped_transform);
     createMarkers(estimated_object);
+
+    recognized_object_pub.publish(estimated_object);
 }
 
 
@@ -314,16 +338,17 @@ int main(int argc, char **argv) {
     nh.param<string>("marker_namespace", marker_namespace, "object_marker_namespace");
     nh.param<double>("marker_max_age", marker_max_age, 5.0);
     nh.param<bool>("use_kalman_filter", use_kalman_filter, true);
+    nh.param<double>("min_object_confidence", min_object_confidence, 0.5);
 
     displayed_markers_number = 0;
+    estimated_object_initialized = false;
 
     estimated_object.type.key = "herbapol_mieta1";
     estimated_object.header.frame_id = world_frame_id;
     estimated_object.pose.header.frame_id = world_frame_id;
 
-    kalman.initKalmanFilter(nStates, nMeasurements, nInputs, dt);
-    measurements = Mat(nMeasurements, 1, CV_64F);
-    measurements.setTo(Scalar(0));
+    kalman.initKalmanFilter(dt);
+    PoseKalmanFilter::initMeasurements(measurements);
 
     // Initialize services.
     ros::ServiceServer estimate_pose = nh.advertiseService<irp6_grasping_msgs::EstimatePose::Request, irp6_grasping_msgs::EstimatePose::Response>(
@@ -337,6 +362,8 @@ int main(int argc, char **argv) {
 
     // Initialize marker publisher.
     marker_publisher = nh.advertise<visualization_msgs::Marker>("visualization_marker", 0);
+
+    recognized_object_pub = nh.advertise<object_recognition_msgs::RecognizedObject>("global_recognized_objects", 0);
 
     ROS_INFO("Ready for recognized object pose update and estimation.");
 

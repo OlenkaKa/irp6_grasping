@@ -11,7 +11,11 @@
 
 using namespace cv;
 
-void MyKalmanFilter::initKalmanFilter(int nStates, int nMeasurements, int nInputs, double dt) {
+int nStates = 18;            // the number of states
+int nMeasurements = 6;       // the number of measured states
+int nInputs = 0;             // the number of action control
+
+void PoseKalmanFilter::initKalmanFilter(double dt) {
     kf_.init(nStates, nMeasurements, nInputs, CV_64F);                 // init Kalman Filter
     cv::setIdentity(kf_.processNoiseCov, cv::Scalar::all(1e-5));       // set process noise
     cv::setIdentity(kf_.measurementNoiseCov, cv::Scalar::all(1e-4));   // set measurement noise
@@ -76,7 +80,12 @@ void MyKalmanFilter::initKalmanFilter(int nStates, int nMeasurements, int nInput
     kf_.measurementMatrix.at<double>(5, 11) = 1; // yaw
 }
 
-void MyKalmanFilter::fillMeasurements(const geometry_msgs::Pose &measured_pose, cv::Mat &measurements) {
+void PoseKalmanFilter::initMeasurements(cv::Mat &measurements) {
+    measurements = Mat(nMeasurements, 1, CV_64F);
+    measurements.setTo(Scalar(0));
+}
+
+void PoseKalmanFilter::fillMeasurements(const geometry_msgs::Pose &measured_pose, cv::Mat &measurements) {
     // Set measurement to predict
     measurements.at<double>(0) = measured_pose.position.x; // x
     measurements.at<double>(1) = measured_pose.position.y; // y
@@ -93,7 +102,7 @@ void MyKalmanFilter::fillMeasurements(const geometry_msgs::Pose &measured_pose, 
 }
 
 
-void MyKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_msgs::Pose &estimated_pose) {
+void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_msgs::Pose &estimated_pose) {
     // First predict, to update the internal statePre variable
     Mat prediction = kf_.predict();
 
@@ -117,7 +126,7 @@ void MyKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_msg
     ROS_INFO("Estimated roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
 }
 
-geometry_msgs::Vector3 MyKalmanFilter::quat2rot_(const geometry_msgs::Quaternion &quaternion) {
+geometry_msgs::Vector3 PoseKalmanFilter::quat2rot_(const geometry_msgs::Quaternion &quaternion) {
     tf::Quaternion tf_quaternion;
     tf::quaternionMsgToTF(quaternion, tf_quaternion);
 
@@ -134,7 +143,7 @@ geometry_msgs::Vector3 MyKalmanFilter::quat2rot_(const geometry_msgs::Quaternion
     return rpy;
 }
 
-geometry_msgs::Quaternion MyKalmanFilter::rot2quat_(const geometry_msgs::Vector3 rpy) {
+geometry_msgs::Quaternion PoseKalmanFilter::rot2quat_(const geometry_msgs::Vector3 rpy) {
     // translate roll, pitch and yaw into a Quaternion
     tf::Quaternion tf_quaternion;
     tf_quaternion.setRPY(rpy.x, rpy.y, rpy.z);
