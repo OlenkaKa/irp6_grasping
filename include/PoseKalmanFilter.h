@@ -1,11 +1,11 @@
 /*!
- * \file KalmanFilter.h
+ * \file PoseKalmanFilter.h
  * \author Aleksandra Karbarczyk
  * \note based on pose_estimation.cpp
  */
 
-#ifndef IRP6_GRASPING_KALMANFILTER_H
-#define IRP6_GRASPING_KALMANFILTER_H
+#ifndef IRP6_GRASPING_POSEKALMANFILTER_H
+#define IRP6_GRASPING_POSEKALMANFILTER_H
 
 // Header containing Kalman filter.
 #include <opencv2/video/tracking.hpp>

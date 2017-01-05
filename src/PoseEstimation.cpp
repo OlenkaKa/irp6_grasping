@@ -18,7 +18,7 @@
 
 #include <boost/bind.hpp>
 
-#include "KalmanFilter.h"
+#include "PoseKalmanFilter.h"
 
 using namespace std;
 using namespace cv;

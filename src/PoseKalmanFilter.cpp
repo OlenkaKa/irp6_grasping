@@ -1,10 +1,10 @@
 /*!
- * \file KalmanFilter.cpp
+ * \file PoseKalmanFilter.cpp
  * \author Aleksandra Karbarczyk
  * \note based on pose_estimation.cpp
  */
 
-#include "KalmanFilter.h"
+#include "PoseKalmanFilter.h"
 
 #include <ros/ros.h>
 #include "tf/transform_datatypes.h"
