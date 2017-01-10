@@ -38,7 +38,16 @@ string world_frame_id;
 
 /// Object information in world coordinates
 object_recognition_msgs::RecognizedObject estimated_object;
+
+/// Object initialization
 bool estimated_object_initialized;
+
+bool inline estimatedObjectExists() {
+    return estimated_object_initialized;
+}
+void inline setEstimatedObjectExistance(bool exists) {
+    estimated_object_initialized = exists;
+}
 
 /// Min object confidence - all objects with less confidence are ignored
 double min_object_confidence;
@@ -66,18 +75,12 @@ geometry_msgs::Pose transformPose(const geometry_msgs::Pose &start_pose, const t
 /// Function transforms point from one to another coordinate frame.
 geometry_msgs::Point transformPoint(const geometry_msgs::Point &point, const tf::Transform tf) {
     tf::Point initial_tf_point(point.x, point.y, point.z);
-//    sensor_pt_xyz[0] = sensor_pt_.x;
-//    sensor_pt_xyz[1] = sensor_pt_.y;
-//    sensor_pt_xyz[2] = sensor_pt_.z;
     tf::Point result_tf_point = tf * initial_tf_point;
 
     geometry_msgs::Point result_point;
     result_point.x = result_tf_point.getX();
     result_point.y = result_tf_point.getY();
     result_point.z = result_tf_point.getZ();
-//    world_pt.x = world_pt_xyz[0];
-//    world_pt.y = world_pt_xyz[1];
-//    world_pt.z = world_pt_xyz[2];
     return result_point;
 }
 
@@ -104,11 +107,14 @@ void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &r
         }
 
         ROS_INFO("New object %s has low confidence.", sensor_object.type.key.c_str());
-        if (estimated_object_initialized) {
+        if (estimatedObjectExists()) {
             sensor_object = estimated_object;
         }
     }
-    estimated_object_initialized = true;
+    if (!estimatedObjectExists()) {
+        estimated_object.bounding_mesh = sensor_object.bounding_mesh;
+        setEstimatedObjectExistance(true);
+    }
 
     try {
         ROS_DEBUG("Getting transform from %s to %s", world_frame_id.c_str(),
@@ -134,15 +140,8 @@ void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &r
         } else {
             estimated_pose = sensor_object_world_pose;
         }
-
-
         estimated_object.pose.pose.pose = estimated_pose;
 
-        estimated_object.bounding_mesh.vertices.clear();
-        for (size_t i = 0, size = sensor_object.bounding_mesh.vertices.size(); i < size; ++i) {
-            estimated_object.bounding_mesh.vertices.push_back(
-                    transformPoint(sensor_object.bounding_mesh.vertices[i], world_sensor_tf));
-        }
     } catch (tf::TransformException &e) {
         ROS_ERROR("%s %s", e.what(), world_frame_id.c_str());
     }
@@ -156,68 +155,55 @@ void deleteMarkers() {
     del_marker.action = visualization_msgs::Marker::DELETEALL;
     marker_publisher.publish(del_marker);
     displayed_markers_number = 0;
-//    for (size_t marker_i = 0; marker_i < displayed_markers_size; marker_i++) {
-//        visualization_msgs::Marker del_marker;
-//        del_marker.ns = "marker_object_meshes";
-//        del_marker.id = marker_i;
-//        del_marker.header.frame_id = world_frame_id;
-//        del_marker.header.stamp = ros::Time();
-//        del_marker.action = visualization_msgs::Marker::DELETE;
-//        marker_publisher.publish(del_marker);
-//    }
 }
 
 void createMarkers(const object_recognition_msgs::RecognizedObject &object) {
-//    std_msgs::Header header = object.header;
-//    if (header.stamp < ros::Time::now() - ros::Duration(marker_max_age)) {
-//        return;
-//    }
-//
-//    shape_msgs::Mesh bounding_mesh = object.bounding_mesh;
-//    visualization_msgs::Marker marker;
-//
-//    marker.header = header;
-//    marker.ns = "marker_object_meshes";
-//    marker.id = displayed_markers_number++;
-//    marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
-//    marker.action = visualization_msgs::Marker::ADD;
-//    marker.pose = object.pose.pose.pose;
-//    marker.scale.x = 1.0;
-//    marker.scale.y = 1.0;
-//    marker.scale.z = 1.0;
-//
-//    std_msgs::ColorRGBA c;
-//    c.r = (displayed_markers_number % 1 == 0);
-//    c.g = (displayed_markers_number % 2 == 0);
-//    c.b = (displayed_markers_number % 3 == 0);
-//    // Alpha (opacity).
-//    // c.a = 1.0f;
-//    size_t size = bounding_mesh.triangles.size();
-//
-//    // Iterate on mesh triangles.
-//    for (size_t i = 0; i < size; i++) {
-//        shape_msgs::MeshTriangle mt = bounding_mesh.triangles[i];
-//        // Add triangle vertices.
-//        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[0]]);
-//        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[1]]);
-//        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[2]]);
-//        // Add triangle colour
-//        std_msgs::ColorRGBA ct;
-//        ct.r = (float) (i + 1) / (size + 1) * c.r;
-//        ct.g = (float) (i + 1) / (size + 1) * c.g;
-//        ct.b = (float) (i + 1) / (size + 1) * c.b;
-//        // Alpha (opacity).
-//        ct.a = 1.0f;
-//
-//        marker.colors.push_back(ct);
-//        marker.colors.push_back(ct);
-//        marker.colors.push_back(ct);
-//    }
-//    marker_publisher.publish(marker);
-}
+    std_msgs::Header header = object.header;
+    if (header.stamp < ros::Time::now() - ros::Duration(marker_max_age)) {
+        return;
+    }
 
-bool inline estimatedObjectExists() {
-    return estimated_object_initialized;
+    visualization_msgs::Marker marker;
+
+    marker.header.stamp = header.stamp;
+    marker.header.frame_id = world_frame_id;
+    marker.ns = "marker_object_meshes";
+    marker.id = displayed_markers_number++;
+    marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.lifetime = ros::Duration(8.0);
+    marker.pose = object.pose.pose.pose;
+    marker.scale.x = 1.0;
+    marker.scale.y = 1.0;
+    marker.scale.z = 1.0;
+
+    // Add triangle list
+    std_msgs::ColorRGBA base_color;
+    base_color.r = (displayed_markers_number % 1 == 0);
+    base_color.g = (displayed_markers_number % 2 == 0);
+    base_color.b = (displayed_markers_number % 3 == 0);
+    base_color.a = 1.0f;
+
+    shape_msgs::Mesh bounding_mesh = object.bounding_mesh;
+
+    for (size_t i = 0, size = bounding_mesh.triangles.size(); i < size; i++) {
+        shape_msgs::MeshTriangle mt = bounding_mesh.triangles[i];
+
+        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[0]]);
+        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[1]]);
+        marker.points.push_back(bounding_mesh.vertices[mt.vertex_indices[2]]);
+
+        std_msgs::ColorRGBA color;
+        color.r = (float) (i + 1) / (size + 1) * base_color.r;
+        color.g = (float) (i + 1) / (size + 1) * base_color.g;
+        color.b = (float) (i + 1) / (size + 1) * base_color.b;
+        color.a = base_color.a;
+
+        marker.colors.push_back(color);
+        marker.colors.push_back(color);
+        marker.colors.push_back(color);
+    }
+    marker_publisher.publish(marker);
 }
 
 void publishRecognizedObjects() {
@@ -239,8 +225,7 @@ void publishRecognizedObjects() {
 
     tf::StampedTransform stamped_transform(transform, estimated_object.pose.header.stamp,
                                            estimated_object.header.frame_id, estimated_object.type.key);
-//        // Publish mesh as marker.
-//        publish_object_mesh_as_marker(displayed_markers_number, estimated_object.header, estimated_object.bounding_mesh);
+
     br.sendTransform(stamped_transform);
     createMarkers(estimated_object);
 
@@ -341,7 +326,7 @@ int main(int argc, char **argv) {
     nh.param<double>("min_object_confidence", min_object_confidence, 0.5);
 
     displayed_markers_number = 0;
-    estimated_object_initialized = false;
+    setEstimatedObjectExistance(false);
 
     estimated_object.type.key = "herbapol_mieta1";
     estimated_object.header.frame_id = world_frame_id;
