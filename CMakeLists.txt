@@ -110,6 +110,7 @@ include_directories(include
 add_executable(pose_estimation
    src/PoseEstimation.cpp
    src/PoseKalmanFilter.cpp
+   src/ResultFileWriter.cpp
 )
 
 ## Add cmake tobject_recognition_msgsarget dependencies of the executable/library
@@ -122,6 +123,9 @@ target_link_libraries(pose_estimation
    ${object_recognition_msgs_LIBRARIES}
    ${OpenCV_LIBRARIES}
 )
+
+# Others
+add_definitions("-std=c++11")
 
 #############
 ## Install ##

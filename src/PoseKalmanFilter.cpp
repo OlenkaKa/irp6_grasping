@@ -104,7 +104,7 @@ void PoseKalmanFilter::fillMeasurements(const geometry_msgs::Pose &measured_pose
 
 void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_msgs::Pose &estimated_pose) {
     // First predict, to update the internal statePre variable
-    Mat prediction = kf_.predict();
+    kf_.predict();
 
     // The "correct" phase that is going to use the predicted value and our measurement
     Mat estimated = kf_.correct(measurement);
@@ -124,6 +124,39 @@ void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_m
     ROS_INFO("Estimated position: %f %f %f", estimated_pose.position.x, estimated_pose.position.y,
              estimated_pose.position.z);
     ROS_INFO("Estimated roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
+}
+
+void PoseKalmanFilter::getCurrentPoseData(PoseData &pose_data) {
+    Mat state = kf_.statePost;
+
+    // Pose
+    pose_data.position.x = state.at<double>(0);
+    pose_data.position.y = state.at<double>(1);
+    pose_data.position.z = state.at<double>(2);
+    pose_data.orientation.x = state.at<double>(9);
+    pose_data.orientation.y = state.at<double>(10);
+    pose_data.orientation.z = state.at<double>(11);
+
+//    // Velocity
+//    pose_data.velocity.linear.x = state.at<double>(3);
+//    pose_data.velocity.linear.y = state.at<double>(4);
+//    pose_data.velocity.linear.z = state.at<double>(5);
+//    pose_data.velocity.angular.x = state.at<double>(12);
+//    pose_data.velocity.angular.y = state.at<double>(13);
+//    pose_data.velocity.angular.z = state.at<double>(14);
+//
+//    // Acceleration
+//    pose_data.acceleration.linear.x = state.at<double>(6);
+//    pose_data.acceleration.linear.y = state.at<double>(7);
+//    pose_data.acceleration.linear.z = state.at<double>(8);
+//    pose_data.acceleration.angular.x = state.at<double>(15);
+//    pose_data.acceleration.angular.y = state.at<double>(16);
+//    pose_data.acceleration.angular.z = state.at<double>(17);
+//
+//    // Covariances
+//    pose_data.processNoiseCov = kf_.processNoiseCov;
+//    pose_data.measurementNoiseCov = kf_.measurementNoiseCov;
+//    pose_data.errorCovPost = kf_.errorCovPost;
 }
 
 geometry_msgs::Vector3 PoseKalmanFilter::quat2rot_(const geometry_msgs::Quaternion &quaternion) {

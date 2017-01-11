@@ -4,6 +4,7 @@
   <param name="world_frame_id" value="/tl_base" />
   <param name="use_kalman_filter" value="true" />
   <param name="min_object_confidence" value="0.45" />
+  <param name="result_root_dir" value="/home/akarbarc/RESULTS" />
 
   <include file="$(find irp6_grasping)/launch/grasping.launch" />
 </launch>

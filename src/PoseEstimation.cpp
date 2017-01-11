@@ -19,6 +19,7 @@
 #include <boost/bind.hpp>
 
 #include "PoseKalmanFilter.h"
+#include "ResultFileWriter.h"
 
 using namespace std;
 using namespace cv;
@@ -45,6 +46,7 @@ bool estimated_object_initialized;
 bool inline estimatedObjectExists() {
     return estimated_object_initialized;
 }
+
 void inline setEstimatedObjectExistance(bool exists) {
     estimated_object_initialized = exists;
 }
@@ -59,6 +61,10 @@ int minInliersKalman = 30;   // TODO
 PoseKalmanFilter kalman;
 Mat measurements;
 bool use_kalman_filter;
+
+/// Result file writer
+string result_root_dir;
+ResultFileWriter result_writer;
 
 
 /// Function transforms pose from one to another coordinate frame.
@@ -141,6 +147,10 @@ void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &r
             estimated_pose = sensor_object_world_pose;
         }
         estimated_object.pose.pose.pose = estimated_pose;
+
+        PoseData kalman_pose_data;
+        kalman.getCurrentPoseData(kalman_pose_data);
+        result_writer.writePoseData(kalman_pose_data);
 
     } catch (tf::TransformException &e) {
         ROS_ERROR("%s %s", e.what(), world_frame_id.c_str());
@@ -324,6 +334,7 @@ int main(int argc, char **argv) {
     nh.param<double>("marker_max_age", marker_max_age, 5.0);
     nh.param<bool>("use_kalman_filter", use_kalman_filter, true);
     nh.param<double>("min_object_confidence", min_object_confidence, 0.5);
+    nh.param<string>("result_root_dir", result_root_dir, "~");
 
     displayed_markers_number = 0;
     setEstimatedObjectExistance(false);
@@ -334,6 +345,8 @@ int main(int argc, char **argv) {
 
     kalman.initKalmanFilter(dt);
     PoseKalmanFilter::initMeasurements(measurements);
+
+    result_writer.init("pose_estimation", result_root_dir);
 
     // Initialize services.
     ros::ServiceServer estimate_pose = nh.advertiseService<irp6_grasping_msgs::EstimatePose::Request, irp6_grasping_msgs::EstimatePose::Response>(

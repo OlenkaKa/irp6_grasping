@@ -10,8 +10,22 @@
 // Header containing Kalman filter.
 #include <opencv2/video/tracking.hpp>
 
+#include <geometry_msgs/Accel.h>
 #include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Twist.h>
 #include <geometry_msgs/Vector3.h>
+
+class PoseData {
+public:
+    geometry_msgs::Point position;      // x, y, z
+    geometry_msgs::Vector3 orientation; // roll, pitch, yaw
+//    geometry_msgs::Twist velocity;
+//    geometry_msgs::Accel acceleration;
+//
+//    cv::Mat processNoiseCov;
+//    cv::Mat measurementNoiseCov;
+//    cv::Mat errorCovPost;
+};
 
 class PoseKalmanFilter {
 public:
@@ -26,6 +40,8 @@ public:
 
     /// Update kalman filter and calculate estimated position
     void updateKalmanFilter(const cv::Mat &measurement, geometry_msgs::Pose &estimated_pose);
+
+    void getCurrentPoseData(PoseData &pose_data);
 
 private:
     cv::KalmanFilter kf_;
