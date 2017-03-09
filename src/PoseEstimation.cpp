@@ -56,8 +56,6 @@ double min_object_confidence;
 
 /// Kalman filer
 double dt = 0.033;           // time between measurements (1/FPS)
-int minInliersKalman = 30;   // TODO
-
 PoseKalmanFilter kalman;
 Mat measurements;
 bool use_kalman_filter;
@@ -99,28 +97,6 @@ void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &r
     ROS_DEBUG("I received: %s in %s reference frame.", sensor_object.type.key.c_str(),
               sensor_object.pose.header.frame_id.c_str());
 
-    // TODO! what if we do not receive new object for a long time?
-    if (estimated_object.type.key.compare(sensor_object.type.key) != 0) {
-        ROS_INFO("New object %s ignored.", sensor_object.type.key.c_str());
-        if (estimated_object_initialized) {
-            sensor_object = estimated_object;
-        } else {
-            return;
-        }
-    } else if (sensor_object.confidence < min_object_confidence) {
-        if (sensor_object.confidence < 0.001) {
-            return;
-        }
-
-        ROS_INFO("New object %s has low confidence.", sensor_object.type.key.c_str());
-        if (estimatedObjectExists()) {
-            sensor_object = estimated_object;
-        }
-    }
-    if (!estimatedObjectExists()) {
-        estimated_object.bounding_mesh = sensor_object.bounding_mesh;
-        setEstimatedObjectExistance(true);
-    }
 
     try {
         ROS_DEBUG("Getting transform from %s to %s", world_frame_id.c_str(),
@@ -181,7 +157,7 @@ void createMarkers(const object_recognition_msgs::RecognizedObject &object) {
     marker.id = displayed_markers_number++;
     marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
     marker.action = visualization_msgs::Marker::ADD;
-    marker.lifetime = ros::Duration(8.0);
+    marker.lifetime = ros::Duration(10.0);
     marker.pose = object.pose.pose.pose;
     marker.scale.x = 1.0;
     marker.scale.y = 1.0;

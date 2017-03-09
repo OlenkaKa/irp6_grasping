@@ -33,8 +33,8 @@ predefined_grasps = [
 # width, height, depth (along x,y,z)
 object_models = [
     ['herbapol_mieta1', PyKDL.Vector(0.140, -0.075, 0.064)],
-    ['/ahmad_object', PyKDL.Vector(0.125, -0.085, 0.085)],
-    ['/lipton_earl_grey_lemon', PyKDL.Vector(0.149, -0.061, 0.040)]
+    ['ahmad1', PyKDL.Vector(0.125, -0.085, 0.085)],
+    ['lipton_earl_grey_classic1', PyKDL.Vector(0.149, -0.061, 0.040)]
 ]
 
 # Tolerance used for computation of distance between gripper fingers (the distance, computed on the basis of object dimensions, is reduced by this parameter), in meters.
@@ -94,14 +94,14 @@ def broadcast_pose(br, pm_pose, child_frame_id, parent_id):
 
 def generate_grasps_wrt_object(obj_id, obj_pose ):
     # Find index for given id
-    obj_number = -1;
+    obj_number = -1
     for i in range(len(object_models)):
         if object_models[i][0] == obj_id:
             obj_number = i
             break
     if obj_number < 0:
         print 'ERROR: Object model not found on the list!'
-        return [];
+        return []
     #grasp_top_origin = ['grasp_top', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi, 0, 0), PyKDL.Vector(0.07, -0.0375, 0.064)), 0.075]
     grasp_top_origin = ['grasp_top', PyKDL.Frame(PyKDL.Rotation.RPY(math.pi, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, object_models[obj_number][1][1]/2, object_models[obj_number][1][2])), math.fabs(object_models[obj_number][1][1])-grasp_distance_tolerance]
     grasp_bottom_origin = ['grasp_bottom', PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0), PyKDL.Vector(object_models[obj_number][1][0]/2, object_models[obj_number][1][1]/2, 0.0)), math.fabs(object_models[obj_number][1][1])-grasp_distance_tolerance]
@@ -121,7 +121,7 @@ def dummy_highest_grasp_pose_selection( grasp_poses ):
         #print i, grasp_poses[i].p.z(), max_z
         if (grasp_poses[i][1].p.z() > max_z):
             max_z = grasp_poses[i][1].p.z()
-            max_i = i;
+            max_i = i
     return ['selected_grasp', grasp_poses[max_i][1], grasp_poses[max_i][2]]
 
 
@@ -135,7 +135,6 @@ def generate_pregrasp( selected_grasp ):
 
 
 if __name__ == "__main__":
-    set_estimate_pose(False)
     half_pi = math.pi/2
 
     # Choose robot
@@ -167,6 +166,7 @@ if __name__ == "__main__":
     #print ' +--  Grasp 4: ',predefined_grasps[0][2][4]
     #print ' +--  Grasp 5: ',predefined_grasps[0][2][5]
     #br.sendTransform((1, 1, 0), tf.transformations.quaternion_from_euler(0, 0, 0), rospy.Time.now(), "/test2", "world")
+    set_estimate_pose(False)
     r = rospy.Rate(1)
     while not rospy.is_shutdown():
         # Move robot to front position.
@@ -181,7 +181,7 @@ if __name__ == "__main__":
             print '%s standing in front position' % robot_name
 
         set_estimate_pose(True)
-        time.sleep(15)
+        time.sleep(20)
         # irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.5), Quaternion(0.0, 0.0, 0.0, 1.0)))
         # observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))
         # # for j in range(40):
@@ -189,72 +189,72 @@ if __name__ == "__main__":
         # set_estimate_pose(False)
 
         # Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
-        oids = get_recognized_objects_list(rospy.Time(1), 0)
-        # Check if there are any objects on the list.
-        if len(oids.object_ids) == 0:
-            print "ERROR: Cannot recognize any objects!"
-            time.sleep(1)
-            continue
-        # List all objects.
-        for oid in oids.object_ids:
-            print 'Recognized Object {0} with confidence {1:.4f}'.format(oid.id, oid.confidence)
-
-        # Get pose of the first object.
-        id = oids.object_ids[0].id
-        print id
-        ret = get_recognized_object_pose(id, rospy.Time(5))
-        if (ret.status != GetRecognizedObjectPoseResponse.OBJECT_FOUND):
-            print 'ERROR: Pose of object ', id, 'could not be recovered!'
-            continue
-        # Else - let's grab it!
-        # print 'Object x= {0:.4f} y={1:.4f} z={2:.4f}'.format(ret.object.pose.pose.pose.position.x,ret.object.pose.pose.pose.position.y,ret.object.pose.pose.pose.position.z)
-        # Broadcast TF with object pose.
-        obj_pose = posemath.fromMsg(ret.object.pose.pose.pose)
-        broadcast_pose(br, obj_pose, ret.object.type.key, ret.object.header.frame_id)
-        # Generate grasps in object reference frame
-        grasps_wrt_object = generate_grasps_wrt_object(id, obj_pose)
-        # Check grasps.
-        if len(grasps_wrt_object) == 0:
-            print "ERROR: Cannot generate grasping points! Skipping this one and trying to recognize and grasp another object!"
-            continue
-        print "Properly generated grasping points for ", oids.object_ids[0], " object!"
-        # print ' +--  Generated Grasp 0: ',generated_grasps[0]
-        # print ' +--  Generated Grasp 1: ',generated_grasps[1]
-        # print ' +--  Generated Grasp 2: ',generated_grasps[2]
-        # print ' +--  Generated Grasp 3: ',generated_grasps[3]
-        # print ' +--  Generated Grasp 4: ',generated_grasps[4]
-        # print ' +--  Generated Grasp 5: ',generated_grasps[5]
-        # Transform grasps to world reference frame
-        grasps_wrt_world = []
-        for gr_i in range(6):
-            # print generated_grasps[gr_i][0], "with finger distance ",generated_grasps[gr_i][2]
-            grasps_wrt_world.append(
-                [grasps_wrt_object[gr_i][0], obj_pose * grasps_wrt_object[gr_i][1], grasps_wrt_object[gr_i][2]]);
-            # grasp_name = generated_grasps[gr_i][0]#ret.object.type.key + grasp_data[0]
-            # ola
-            #broadcast_pose(br, grasps_wrt_world[gr_i][1], grasps_wrt_world[gr_i][0], ret.object.header.frame_id)
-        # Grasp selection - select "highest" pose.
-        selected_grasp = dummy_highest_grasp_pose_selection(grasps_wrt_world)
-        # TODO - temp solution: remove offset
-        selected_grasp[1] = selected_grasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, 0.04))
-
-        broadcast_pose(br, selected_grasp[1], selected_grasp[0], ret.object.header.frame_id)
-        # Generate pregrasps.
-        pregrasp = generate_pregrasp(selected_grasp)
-        broadcast_pose(br, pregrasp[1], pregrasp[0], ret.object.header.frame_id)
-        # Move to pregrasp pose.
-        irpos.move_to_cartesian_pose(20.0, pm.toMsg(pregrasp[1]))
-        # Set pregrasp distance between fingers.
-        irpos.tfg_to_joint_position(pregrasp[2], 3.0)
-        # Move towards the object.
-        # pose = pregrasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, 0.10))
-        irpos.move_to_cartesian_pose(3.0, pm.toMsg(selected_grasp[1]))
-        # Set grasp distance between fingers.
-        irpos.tfg_to_joint_position(selected_grasp[2], 3.0)
-        # Move back to pregrasp pose.
-        irpos.move_to_cartesian_pose(3.0, pm.toMsg(pregrasp[1]))
-        # Set pregrasp distance between fingers - drop object.
-        irpos.tfg_to_joint_position(pregrasp[2], 3.0)
+        # oids = get_recognized_objects_list(rospy.Time(1), 0)
+        # # Check if there are any objects on the list.
+        # if len(oids.object_ids) == 0:
+        #     print "ERROR: Cannot recognize any objects!"
+        #     time.sleep(1)
+        #     continue
+        # # List all objects.
+        # for oid in oids.object_ids:
+        #     print 'Recognized Object {0} with confidence {1:.4f}'.format(oid.id, oid.confidence)
+        #
+        # # Get pose of the first object.
+        # id = oids.object_ids[0].id
+        # print id
+        # ret = get_recognized_object_pose(id, rospy.Time(5))
+        # if (ret.status != GetRecognizedObjectPoseResponse.OBJECT_FOUND):
+        #     print 'ERROR: Pose of object ', id, 'could not be recovered!'
+        #     continue
+        # # Else - let's grab it!
+        # # print 'Object x= {0:.4f} y={1:.4f} z={2:.4f}'.format(ret.object.pose.pose.pose.position.x,ret.object.pose.pose.pose.position.y,ret.object.pose.pose.pose.position.z)
+        # # Broadcast TF with object pose.
+        # obj_pose = posemath.fromMsg(ret.object.pose.pose.pose)
+        # broadcast_pose(br, obj_pose, ret.object.type.key, ret.object.header.frame_id)
+        # # Generate grasps in object reference frame
+        # grasps_wrt_object = generate_grasps_wrt_object(id, obj_pose)
+        # # Check grasps.
+        # if len(grasps_wrt_object) == 0:
+        #     print "ERROR: Cannot generate grasping points! Skipping this one and trying to recognize and grasp another object!"
+        #     continue
+        # print "Properly generated grasping points for ", oids.object_ids[0], " object!"
+        # # print ' +--  Generated Grasp 0: ',generated_grasps[0]
+        # # print ' +--  Generated Grasp 1: ',generated_grasps[1]
+        # # print ' +--  Generated Grasp 2: ',generated_grasps[2]
+        # # print ' +--  Generated Grasp 3: ',generated_grasps[3]
+        # # print ' +--  Generated Grasp 4: ',generated_grasps[4]
+        # # print ' +--  Generated Grasp 5: ',generated_grasps[5]
+        # # Transform grasps to world reference frame
+        # grasps_wrt_world = []
+        # for gr_i in range(6):
+        #     # print generated_grasps[gr_i][0], "with finger distance ",generated_grasps[gr_i][2]
+        #     grasps_wrt_world.append(
+        #         [grasps_wrt_object[gr_i][0], obj_pose * grasps_wrt_object[gr_i][1], grasps_wrt_object[gr_i][2]]);
+        #     # grasp_name = generated_grasps[gr_i][0]#ret.object.type.key + grasp_data[0]
+        #     # ola
+        #     #broadcast_pose(br, grasps_wrt_world[gr_i][1], grasps_wrt_world[gr_i][0], ret.object.header.frame_id)
+        # # Grasp selection - select "highest" pose.
+        # selected_grasp = dummy_highest_grasp_pose_selection(grasps_wrt_world)
+        # # TODO - temp solution: remove offset
+        # selected_grasp[1] = selected_grasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, 0.04))
+        #
+        # broadcast_pose(br, selected_grasp[1], selected_grasp[0], ret.object.header.frame_id)
+        # # Generate pregrasps.
+        # pregrasp = generate_pregrasp(selected_grasp)
+        # broadcast_pose(br, pregrasp[1], pregrasp[0], ret.object.header.frame_id)
+        # # Move to pregrasp pose.
+        # irpos.move_to_cartesian_pose(20.0, pm.toMsg(pregrasp[1]))
+        # # Set pregrasp distance between fingers.
+        # irpos.tfg_to_joint_position(pregrasp[2], 3.0)
+        # # Move towards the object.
+        # # pose = pregrasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, 0.10))
+        # irpos.move_to_cartesian_pose(3.0, pm.toMsg(selected_grasp[1]))
+        # # Set grasp distance between fingers.
+        # irpos.tfg_to_joint_position(selected_grasp[2], 3.0)
+        # # Move back to pregrasp pose.
+        # irpos.move_to_cartesian_pose(3.0, pm.toMsg(pregrasp[1]))
+        # # Set pregrasp distance between fingers - drop object.
+        # irpos.tfg_to_joint_position(pregrasp[2], 3.0)
         r.sleep()
 
         #end of program;)
