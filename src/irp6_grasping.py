@@ -34,7 +34,8 @@ predefined_grasps = [
 object_models = [
     ['herbapol_mieta1', PyKDL.Vector(0.140, -0.075, 0.064)],
     ['ahmad1', PyKDL.Vector(0.125, -0.085, 0.085)],
-    ['lipton_earl_grey_classic1', PyKDL.Vector(0.149, -0.061, 0.040)]
+    ['lipton_earl_grey_classic1', PyKDL.Vector(0.149, -0.061, 0.040)],
+    ['tabasco', PyKDL.Vector(0.142, -0.040, 0.040)]
 ]
 
 # Tolerance used for computation of distance between gripper fingers (the distance, computed on the basis of object dimensions, is reduced by this parameter), in meters.
@@ -133,8 +134,52 @@ def generate_pregrasp( selected_grasp ):
     # Set finger distance to 9cm.
     return ['pregrasp', pose, 0.09]
 
+def tfg_to_joint_position_with_contact(dest_irpos, dest_position):
+    class OptoforceData:
+        def __init__(self, optoforce_value):
+            self.no_contact_average_measurement = 0
+            self.contact_difference = 17
+            self.lock = Lock()
+            self.contact = None
+            self.check_if_contact(optoforce_value)
+
+        def check_if_contact(self, measurement):
+            with self.lock:
+                value = measurement.vector.z
+                self.contact = abs(value - self.no_contact_average_measurement) > self.contact_difference
+                if not self.contact:
+                    self.no_contact_average_measurement = (self.no_contact_average_measurement + value) / 2
+
+    optoforce1_topic = '/optoforce1/force0'
+    optoforce2_topic = '/optoforce2/force0'
+
+    optoforce1_data = OptoforceData(rospy.wait_for_message(optoforce1_topic, Vector3Stamped))
+    optoforce2_data = OptoforceData(rospy.wait_for_message(optoforce2_topic, Vector3Stamped))
+
+    optoforce1_sub = rospy.Subscriber(optoforce1_topic, Vector3Stamped, optoforce1_data.check_if_contact)
+    optoforce2_sub = rospy.Subscriber(optoforce2_topic, Vector3Stamped, optoforce2_data.check_if_contact)
+
+    r = rospy.Rate(0.9)
+    while not ((optoforce1_data.contact is True) and (optoforce2_data.contact is True)):
+        tfg_joint_position = dest_irpos.get_tfg_joint_position()[0]
+        print tfg_joint_position
+        tfg_diff = dest_position - tfg_joint_position
+        if tfg_diff > 0.003:
+            print tfg_joint_position + 0.003
+            dest_irpos.tfg_to_joint_position(tfg_joint_position + 0.003, 1.0)
+        elif tfg_diff < -0.003:
+            print tfg_joint_position - 0.003
+            dest_irpos.tfg_to_joint_position(tfg_joint_position - 0.003, 1.0)
+        else:
+            break
+        r.sleep()
+
+    optoforce1_sub.unregister()
+    optoforce2_sub.unregister()
+
 
 if __name__ == "__main__":
+    # set_estimate_pose(False)
     half_pi = math.pi/2
 
     # Choose robot
@@ -166,7 +211,6 @@ if __name__ == "__main__":
     #print ' +--  Grasp 4: ',predefined_grasps[0][2][4]
     #print ' +--  Grasp 5: ',predefined_grasps[0][2][5]
     #br.sendTransform((1, 1, 0), tf.transformations.quaternion_from_euler(0, 0, 0), rospy.Time.now(), "/test2", "world")
-    set_estimate_pose(False)
     r = rospy.Rate(1)
     while not rospy.is_shutdown():
         # Move robot to front position.
@@ -181,14 +225,14 @@ if __name__ == "__main__":
             print '%s standing in front position' % robot_name
 
         set_estimate_pose(True)
-        time.sleep(20)
+        time.sleep(30)
         # irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.5), Quaternion(0.0, 0.0, 0.0, 1.0)))
         # observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))
-        # # for j in range(40):
+        # # # for j in range(40):
         # irpos.move_rel_to_cartesian_pose(120.0, observe_pose)
-        # set_estimate_pose(False)
+        set_estimate_pose(False)
 
-        # Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
+        # # Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
         # oids = get_recognized_objects_list(rospy.Time(1), 0)
         # # Check if there are any objects on the list.
         # if len(oids.object_ids) == 0:
@@ -229,7 +273,7 @@ if __name__ == "__main__":
         # for gr_i in range(6):
         #     # print generated_grasps[gr_i][0], "with finger distance ",generated_grasps[gr_i][2]
         #     grasps_wrt_world.append(
-        #         [grasps_wrt_object[gr_i][0], obj_pose * grasps_wrt_object[gr_i][1], grasps_wrt_object[gr_i][2]]);
+        #         [grasps_wrt_object[gr_i][0], obj_pose * grasps_wrt_object[gr_i][1], grasps_wrt_object[gr_i][2]])
         #     # grasp_name = generated_grasps[gr_i][0]#ret.object.type.key + grasp_data[0]
         #     # ola
         #     #broadcast_pose(br, grasps_wrt_world[gr_i][1], grasps_wrt_world[gr_i][0], ret.object.header.frame_id)
