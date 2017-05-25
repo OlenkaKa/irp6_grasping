@@ -124,6 +124,7 @@ void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &r
         }
         estimated_object.pose.pose.pose = estimated_pose;
 
+        setEstimatedObjectExistance(estimated_object.confidence > 0.7);
         PoseData kalman_pose_data;
         kalman.getCurrentPoseData(kalman_pose_data);
         result_writer.writePoseData(kalman_pose_data);
@@ -134,13 +135,13 @@ void recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &r
 }
 
 void deleteMarkers() {
-    visualization_msgs::Marker del_marker;
-    del_marker.ns = marker_namespace;
-    del_marker.header.frame_id = world_frame_id;
-    del_marker.header.stamp = ros::Time();
-    del_marker.action = visualization_msgs::Marker::DELETEALL;
-    marker_publisher.publish(del_marker);
-    displayed_markers_number = 0;
+//    visualization_msgs::Marker del_marker;
+//    del_marker.ns = marker_namespace;
+//    del_marker.header.frame_id = world_frame_id;
+//    del_marker.header.stamp = ros::Time();
+//    del_marker.action = visualization_msgs::Marker::DELETEALL;
+//    marker_publisher.publish(del_marker);
+//    displayed_markers_number = 0;
 }
 
 void createMarkers(const object_recognition_msgs::RecognizedObject &object) {
@@ -153,11 +154,11 @@ void createMarkers(const object_recognition_msgs::RecognizedObject &object) {
 
     marker.header.stamp = header.stamp;
     marker.header.frame_id = world_frame_id;
-    marker.ns = "marker_object_meshes";
-    marker.id = displayed_markers_number++;
+    marker.ns = marker_namespace;
+    marker.id = 1;
     marker.type = visualization_msgs::Marker::TRIANGLE_LIST;
     marker.action = visualization_msgs::Marker::ADD;
-    marker.lifetime = ros::Duration(10.0);
+    marker.lifetime = ros::Duration(8.0);
     marker.pose = object.pose.pose.pose;
     marker.scale.x = 1.0;
     marker.scale.y = 1.0;
@@ -315,6 +316,7 @@ int main(int argc, char **argv) {
     displayed_markers_number = 0;
     setEstimatedObjectExistance(false);
 
+//    estimated_object.type.key = "tabasco";
     estimated_object.type.key = "herbapol_mieta1";
     estimated_object.header.frame_id = world_frame_id;
     estimated_object.pose.header.frame_id = world_frame_id;
