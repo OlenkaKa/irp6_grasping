@@ -3,7 +3,7 @@
  * \author Aleksandra Karbarczyk
  */
 
-#include "ResultFileWriter.h"
+#include "irp6_grasping/result_file_writer.h"
 
 #include <chrono>
 #include <fstream>

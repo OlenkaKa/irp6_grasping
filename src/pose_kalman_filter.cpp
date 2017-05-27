@@ -4,7 +4,7 @@
  * \note based on pose_estimation.cpp
  */
 
-#include "PoseKalmanFilter.h"
+#include "irp6_grasping/pose_kalman_filter.h"
 
 #include <ros/ros.h>
 #include "tf/transform_datatypes.h"

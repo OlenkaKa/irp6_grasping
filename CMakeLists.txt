@@ -108,9 +108,9 @@ include_directories(include
 
 ## Declare a cpp executable
 add_executable(pose_estimation
-   src/PoseEstimation.cpp
-   src/PoseKalmanFilter.cpp
-   src/ResultFileWriter.cpp
+   src/pose_estimation_node.cpp
+   src/pose_kalman_filter.cpp
+   src/result_file_writer.cpp
 )
 
 ## Add cmake tobject_recognition_msgsarget dependencies of the executable/library

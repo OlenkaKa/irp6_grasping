@@ -12,14 +12,13 @@
 
 #include <object_recognition_msgs/RecognizedObject.h>
 
+#include <irp6_grasping/pose_kalman_filter.h>
+#include <irp6_grasping/result_file_writer.h>
 #include <irp6_grasping_msgs/EstimatePose.h>
 #include <irp6_grasping_msgs/GetRecognizedObjectPose.h>
 #include <irp6_grasping_msgs/GetRecognizedObjectsList.h>
 
 #include <boost/bind.hpp>
-
-#include "PoseKalmanFilter.h"
-#include "ResultFileWriter.h"
 
 using namespace std;
 using namespace cv;
