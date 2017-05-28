@@ -109,6 +109,9 @@ include_directories(include
 ## Declare a cpp executable
 add_executable(pose_estimation
    src/pose_estimation_node.cpp
+   src/object_marker_publisher.cpp
+   src/object_model.cpp
+   src/object_pose_estimator.cpp
    src/pose_kalman_filter.cpp
    src/result_file_writer.cpp
 )

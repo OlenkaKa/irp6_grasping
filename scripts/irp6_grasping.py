@@ -42,11 +42,11 @@ object_models = [
 grasp_distance_tolerance = 0.002
 
 
-def set_estimate_pose(enable_pose_estimation):
+def set_estimate_pose(enable_pose_estimation, *view_id):
     rospy.wait_for_service('estimate_pose')
     try:
         estimate_pose = rospy.ServiceProxy('estimate_pose', EstimatePose)
-        return estimate_pose(enable_pose_estimation)
+        return estimate_pose(enable_pose_estimation, view_id if view_id else 0)
     except rospy.ServiceException, e:
         print "Service call failed: %s" % e
 
@@ -178,7 +178,7 @@ def tfg_to_joint_position_with_contact(dest_irpos, dest_position):
 
 
 if __name__ == "__main__":
-    # set_estimate_pose(False)
+    set_estimate_pose(False)
     half_pi = math.pi/2
 
     # Choose robot
@@ -223,7 +223,7 @@ if __name__ == "__main__":
         else:
             print '%s standing in front position' % robot_name
 
-        set_estimate_pose(True)
+        set_estimate_pose(True, 0)
         time.sleep(30)
         # irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.5), Quaternion(0.0, 0.0, 0.0, 1.0)))
         # observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))

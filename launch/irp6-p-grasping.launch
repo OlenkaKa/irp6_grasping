@@ -1,6 +1,7 @@
 <launch>
   <param name="robot_name" value="Irp6p" />
   <param name="kinect_optical_frame" value="/p_kinect_optical_frame" />
+  <param name="object_id" value="herbapol_mieta1" />
   <param name="world_frame_id" value="/pl_base" />
   <param name="use_kalman_filter" value="true" />
   <param name="min_object_confidence" value="0.45" />

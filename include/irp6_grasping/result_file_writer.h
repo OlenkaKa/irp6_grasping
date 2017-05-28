@@ -3,18 +3,22 @@
  * \author Aleksandra Karbarczyk
  */
 
-#ifndef IRP6_GRASPING_RESULTFILEWRITER_H
-#define IRP6_GRASPING_RESULTFILEWRITER_H
+#ifndef IRP6_GRASPING_RESULT_FILE_WRITER_H
+#define IRP6_GRASPING_RESULT_FILE_WRITER_H
 
-#include <string>
 #include "pose_kalman_filter.h"
 
-class ResultFileWriter {
+namespace irp6_grasping
+{
+class ResultFileWriter
+{
 public:
-    void init(const std::string &id, const std::string &dir_name);
-    void writePoseData(const PoseData &data);
-private:
-    std::string file_name_;
-};
+  ResultFileWriter(const std::string &id, const std::string &dir_name);
+  void writePoseData(const PoseData &data);
 
-#endif //IRP6_GRASPING_RESULTFILEWRITER_H
+private:
+  std::string file_name_;
+};
+}  // irp6_grasping
+
+#endif  // IRP6_GRASPING_RESULT_FILE_WRITER_H
