@@ -93,7 +93,7 @@ def broadcast_pose(br, pm_pose, child_frame_id, parent_id):
         parent_id)
 
 
-def generate_grasps_wrt_object(obj_id, obj_pose ):
+def generate_grasps_wrt_object(obj_id, obj_pose):
     # Find index for given id
     obj_number = -1
     for i in range(len(object_models)):
@@ -176,6 +176,36 @@ def tfg_to_joint_position_with_contact(dest_irpos, dest_position):
     optoforce1_sub.unregister()
     optoforce2_sub.unregister()
 
+def get_object_to_grasp():
+    # Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
+    oids = get_recognized_objects_list(rospy.Time(1), 0)
+    # Check if there are any objects on the list.
+    if len(oids.object_ids) == 0:
+        print "ERROR: Cannot recognize any objects!"
+        time.sleep(1)
+        return False, None
+    # List all objects.
+    for oid in oids.object_ids:
+        print 'Recognized Object {0} with confidence {1:.4f}'.format(oid.id, oid.confidence)
+
+    # Get pose of the first object.
+    id = oids.object_ids[0].id
+    print id
+    ret = get_recognized_object_pose(id, rospy.Time(5))
+    if (ret.status != GetRecognizedObjectPoseResponse.OBJECT_FOUND):
+        print 'ERROR: Pose of object ', id, 'could not be recovered!'
+        return False, None
+    # Else - let's grab it!
+    # print 'Object x= {0:.4f} y={1:.4f} z={2:.4f}'.format(ret.object.pose.pose.pose.position.x,ret.object.pose.pose.pose.position.y,ret.object.pose.pose.pose.position.z)
+    # Broadcast TF with object pose.
+    obj_pose = posemath.fromMsg(ret.object.pose.pose.pose)
+    broadcast_pose(br, obj_pose, ret.object.type.key, ret.object.header.frame_id)
+    return True, obj_pose
+
+def observe_scene(view_id, observation_time):
+    set_estimate_pose(True, view_id)
+    time.sleep(observation_time)
+    set_estimate_pose(False, view_id)
 
 if __name__ == "__main__":
     set_estimate_pose(False, 1)
@@ -187,7 +217,9 @@ if __name__ == "__main__":
 
     if robot_name == 'Irp6ot':
         irpos = IRPOS('irp6ot_grasping', 'Irp6ot', 7, 'irp6ot_manager')
-        front_desired_joints = [0, 0, -half_pi, 0, 0, 3*half_pi, -half_pi]
+        # front_desired_joints = [0, 0, -half_pi, 0, 0, 3*half_pi, -half_pi]
+        # irpos.move_to_cartesian_pose(10.0, Pose(Point(0.8, 0, 1.30), Quaternion(0, 1, 0, 0)))
+        front_desired_joints = [0.0, 7.692487217655884e-06, -1.666887782823125, -0.12526463087695183, 0.22135429144361307, 4.712395088435141, -1.5707949064846223]
     elif robot_name == 'Irp6p':
         irpos = IRPOS('irp6p_grasping', 'Irp6p', 6, 'irp6p_manager')
         front_desired_joints = [0, -half_pi, 0, 0, 3*half_pi, half_pi]
@@ -222,38 +254,27 @@ if __name__ == "__main__":
             irpos.move_to_joint_position(front_desired_joints, 20.00)
         else:
             print '%s standing in front position' % robot_name
-
-        set_estimate_pose(True, 1)
-        time.sleep(50)
-        # irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.5), Quaternion(0.0, 0.0, 0.0, 1.0)))
-        # observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))
-        # # # for j in range(40):
-        # irpos.move_rel_to_cartesian_pose(120.0, observe_pose)
-        set_estimate_pose(False, 1)
-
-        # Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
-        oids = get_recognized_objects_list(rospy.Time(1), 0)
-        # Check if there are any objects on the list.
-        if len(oids.object_ids) == 0:
-            print "ERROR: Cannot recognize any objects!"
-            time.sleep(1)
+        observe_scene(1, 30.0)
+        status, obj_pose = get_object_to_grasp()
+        if status is not True:
             continue
-        # List all objects.
-        for oid in oids.object_ids:
-            print 'Recognized Object {0} with confidence {1:.4f}'.format(oid.id, oid.confidence)
 
-        # Get pose of the first object.
-        id = oids.object_ids[0].id
-        print id
-        ret = get_recognized_object_pose(id, rospy.Time(5))
-        if (ret.status != GetRecognizedObjectPoseResponse.OBJECT_FOUND):
-            print 'ERROR: Pose of object ', id, 'could not be recovered!'
+        next_irpos_position = Point(obj_pose.p.x(), obj_pose.p.y(), obj_pose.p.z())
+        next_irpos_position.z += 0.1
+        irpos.move_to_cartesian_pose(10.0, Pose(next_irpos_position, Quaternion(0, 1, 0, 0)))
+        observe_scene(1, 30.0)
+        status, obj_pose = get_object_to_grasp()
+        if status is not True:
             continue
-        # Else - let's grab it!
-        # print 'Object x= {0:.4f} y={1:.4f} z={2:.4f}'.format(ret.object.pose.pose.pose.position.x,ret.object.pose.pose.pose.position.y,ret.object.pose.pose.pose.position.z)
-        # Broadcast TF with object pose.
-        obj_pose = posemath.fromMsg(ret.object.pose.pose.pose)
-        broadcast_pose(br, obj_pose, ret.object.type.key, ret.object.header.frame_id)
+
+        irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.5), Quaternion(0.0, 0.0, 0.0, 1.0)))
+        observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))
+        irpos.move_rel_to_cartesian_pose(30.0, observe_pose)
+        observe_scene(3, 30.0)
+        status, obj_pose = get_object_to_grasp()
+        if status is not True:
+            continue
+
         # Generate grasps in object reference frame
         grasps_wrt_object = generate_grasps_wrt_object(id, obj_pose)
         # Check grasps.
