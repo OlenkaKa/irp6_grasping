@@ -24,12 +24,10 @@ ObjectPoseEstimator::SingleViewPoseEstimator::~SingleViewPoseEstimator()
 void ObjectPoseEstimator::SingleViewPoseEstimator::estimatePose(const ros::Time &time, const geometry_msgs::Pose &pose,
                                                                 double confidence)
 {
-  geometry_msgs::Pose estimated_pose(pose);
-  if (true)  // TODO use_kalman_filter
-  {
-    kalman_->fillMeasurements(pose, measurements_);
-    kalman_->updateKalmanFilter(measurements_, estimated_pose);
-  }
+  geometry_msgs::Pose estimated_pose;
+  kalman_->fillMeasurements(pose, measurements_);
+  kalman_->updateKalmanFilter(measurements_, estimated_pose);
+
   this->pose_ = estimated_pose;
 
   double estimation_confidence = this->confidence_ / 2 + confidence;
@@ -38,8 +36,8 @@ void ObjectPoseEstimator::SingleViewPoseEstimator::estimatePose(const ros::Time 
   this->last_update_ = time;
 }
 
-ObjectPoseEstimator::ObjectPoseEstimator(double min_confidence, bool use_kalman_filter)
-  : min_confidence_(min_confidence), use_kalman_filter_(use_kalman_filter)
+ObjectPoseEstimator::ObjectPoseEstimator(double min_confidence)
+  : min_confidence_(min_confidence)
 {
 }
 

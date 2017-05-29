@@ -42,11 +42,11 @@ object_models = [
 grasp_distance_tolerance = 0.002
 
 
-def set_estimate_pose(enable_pose_estimation, *view_id):
+def set_estimate_pose(enable_pose_estimation, view_id):
     rospy.wait_for_service('estimate_pose')
     try:
         estimate_pose = rospy.ServiceProxy('estimate_pose', EstimatePose)
-        return estimate_pose(enable_pose_estimation, view_id if view_id else 0)
+        return estimate_pose(enable_pose_estimation, view_id)
     except rospy.ServiceException, e:
         print "Service call failed: %s" % e
 
@@ -178,7 +178,7 @@ def tfg_to_joint_position_with_contact(dest_irpos, dest_position):
 
 
 if __name__ == "__main__":
-    set_estimate_pose(False)
+    set_estimate_pose(False, 1)
     half_pi = math.pi/2
 
     # Choose robot
@@ -223,13 +223,13 @@ if __name__ == "__main__":
         else:
             print '%s standing in front position' % robot_name
 
-        set_estimate_pose(True, 0)
-        time.sleep(30)
+        set_estimate_pose(True, 1)
+        time.sleep(50)
         # irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.5), Quaternion(0.0, 0.0, 0.0, 1.0)))
         # observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))
         # # # for j in range(40):
         # irpos.move_rel_to_cartesian_pose(120.0, observe_pose)
-        set_estimate_pose(False)
+        set_estimate_pose(False, 1)
 
         # Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
         oids = get_recognized_objects_list(rospy.Time(1), 0)

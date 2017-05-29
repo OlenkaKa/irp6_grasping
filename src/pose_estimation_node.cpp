@@ -25,13 +25,12 @@ void PoseEstimationNode::start(ros::NodeHandle &nh)
 
   nh.param<string>("world_frame_id", world_frame_id, "/tl_base");
   nh.param<string>("object_id", object_id, "herbapol_mieta1");
-  nh.param<bool>("use_kalman_filter", use_kalman_filter, true);
   nh.param<double>("min_object_confidence", min_object_confidence, 0.5);
   nh.param<string>("result_root_dir", result_root_dir, "~");
 
   object_model_.setId(object_id);
 
-  object_pose_estimator_ = new ObjectPoseEstimator(min_object_confidence, use_kalman_filter);
+  object_pose_estimator_ = new ObjectPoseEstimator(min_object_confidence);
 
   result_writer_ = new ResultFileWriter("pose_estimation", result_root_dir);
 
@@ -74,6 +73,7 @@ object_recognition_msgs::RecognizedObject PoseEstimationNode::createRecognizedOb
 {
   object_recognition_msgs::RecognizedObject object;
   object.header.frame_id = world_frame_id;
+  object.pose.header.frame_id = world_frame_id;
   object_model_.addData(object);
   object_pose_estimator_->addData(view_id_, object);
   return object;
@@ -137,9 +137,7 @@ void PoseEstimationNode::publishRecognizedObjects()
   static tf::TransformBroadcaster br;
 
   if (!object_pose_estimator_->canEstimatePose())
-  {
     return;
-  }
 
   object_recognition_msgs::RecognizedObject estimated_object = createRecognizedObject();
 

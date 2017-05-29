@@ -14,7 +14,7 @@ namespace irp6_grasping
 class ObjectPoseEstimator
 {
 public:
-  ObjectPoseEstimator(double min_confidence, bool use_kalman_filter);
+  ObjectPoseEstimator(double min_confidence);
   ~ObjectPoseEstimator();
   ros::Time getLastPoseEstimationTime() const;
   bool canEstimatePose() const;
@@ -39,7 +39,6 @@ private:
 
   std::map<int, SingleViewPoseEstimator *> view_estimators_;
   double min_confidence_;
-  bool use_kalman_filter_;  // TODO
 };
 }  // irp6_grasping
 
