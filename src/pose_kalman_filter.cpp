@@ -99,8 +99,8 @@ void PoseKalmanFilter::fillMeasurements(const geometry_msgs::Pose &measured_pose
   measurements.at<double>(4) = rpy.y;  // pitch
   measurements.at<double>(5) = rpy.z;  // yaw
 
-  ROS_INFO("Measured position: %f %f %f", measured_pose.position.x, measured_pose.position.y, measured_pose.position.z);
-  ROS_INFO("Measured roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
+//  ROS_INFO("Measured position: %f %f %f", measured_pose.position.x, measured_pose.position.y, measured_pose.position.z);
+//  ROS_INFO("Measured roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
 }
 
 void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_msgs::Pose &estimated_pose)
@@ -123,9 +123,9 @@ void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_m
   rpy.z = estimated.at<double>(11);
   estimated_pose.orientation = rot2quat(rpy);
 
-  ROS_INFO("Estimated position: %f %f %f", estimated_pose.position.x, estimated_pose.position.y,
-           estimated_pose.position.z);
-  ROS_INFO("Estimated roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
+//  ROS_INFO("Estimated position: %f %f %f", estimated_pose.position.x, estimated_pose.position.y,
+//           estimated_pose.position.z);
+//  ROS_INFO("Estimated roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
 }
 
 void PoseKalmanFilter::getCurrentPoseData(PoseData &pose_data)

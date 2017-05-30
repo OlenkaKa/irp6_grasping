@@ -22,12 +22,14 @@ namespace irp6_grasping
 class PoseEstimationNode
 {
 public:
-  void start(ros::NodeHandle &nh);
+  void execute(ros::NodeHandle &nh);
 
 private:
   void finish();
 
-  object_recognition_msgs::RecognizedObject createRecognizedObject();
+  object_recognition_msgs::RecognizedObject createViewRecognizedObject() const;
+
+  object_recognition_msgs::RecognizedObject createRecognizedObject() const;
 
   void publishRecognizedObjects();
 

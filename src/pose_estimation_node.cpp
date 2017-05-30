@@ -15,7 +15,7 @@ using namespace irp6_grasping;
 using namespace std;
 using namespace cv;
 
-void PoseEstimationNode::start(ros::NodeHandle &nh)
+void PoseEstimationNode::execute(ros::NodeHandle &nh)
 {
   // Read parameters
   std::string object_id;
@@ -69,13 +69,23 @@ void PoseEstimationNode::finish()
   delete result_writer_;
 }
 
-object_recognition_msgs::RecognizedObject PoseEstimationNode::createRecognizedObject()
+object_recognition_msgs::RecognizedObject PoseEstimationNode::createViewRecognizedObject() const
 {
   object_recognition_msgs::RecognizedObject object;
   object.header.frame_id = world_frame_id;
   object.pose.header.frame_id = world_frame_id;
   object_model_.addData(object);
   object_pose_estimator_->addData(view_id_, object);
+  return object;
+}
+
+object_recognition_msgs::RecognizedObject PoseEstimationNode::createRecognizedObject() const
+{
+  object_recognition_msgs::RecognizedObject object;
+  object.header.frame_id = world_frame_id;
+  object.pose.header.frame_id = world_frame_id;
+  object_model_.addData(object);
+  object_pose_estimator_->addData(object);
   return object;
 }
 
@@ -139,7 +149,7 @@ void PoseEstimationNode::publishRecognizedObjects()
   if (!object_pose_estimator_->canEstimatePose(view_id_))
     return;
 
-  object_recognition_msgs::RecognizedObject estimated_object = createRecognizedObject();
+  object_recognition_msgs::RecognizedObject estimated_object = createViewRecognizedObject();
 
   marker_publisher_->deleteMarkers();
   ROS_DEBUG("Adding transform from %s to %s to broadcasted TF message", estimated_object.header.frame_id.c_str(),
@@ -165,6 +175,12 @@ bool PoseEstimationNode::estimatePoseCallback(irp6_grasping_msgs::EstimatePose::
 {
   if (request.calculate_pose)
   {
+    // TODO
+    if (view_id_ > request.view_id) {
+      object_pose_estimator_->clear();
+    } else {
+      object_pose_estimator_->clearView(request.view_id);
+    }
     view_id_ = request.view_id;
     recognized_object_sub =
         node_handle.subscribe("recognized_objects", 1000, &PoseEstimationNode::recognizedObjectCallback, this);
@@ -183,15 +199,15 @@ bool PoseEstimationNode::returnRecognizedObjectPoseServiceCallback(
     irp6_grasping_msgs::GetRecognizedObjectPose::Request &request,
     irp6_grasping_msgs::GetRecognizedObjectPose::Response &response)
 {
-  if (!object_pose_estimator_->canEstimatePose(view_id_))
+  if (!object_pose_estimator_->canEstimatePose())
   {
     response.status = irp6_grasping_msgs::GetRecognizedObjectPose::Response::NO_OBJECTS;
     ROS_INFO("No object available.");
     return true;
   }
 
-  if (object_model_.getId().compare(request.object_id) != 0 ||
-      object_pose_estimator_->getLastPoseEstimationTime() < ros::Time::now() - request.age)
+  if (object_model_.getId().compare(request.object_id) != 0)// ||
+//      object_pose_estimator_->getLastPoseEstimationTime() < ros::Time::now() - request.age)
   {
     response.status = irp6_grasping_msgs::GetRecognizedObjectPose::Response::OBJECT_NOT_FOUND;
     ROS_INFO("Object %s not found.", request.object_id.c_str());
@@ -209,8 +225,8 @@ bool PoseEstimationNode::returnRecognizedObjectsListServiceCallback(
     irp6_grasping_msgs::GetRecognizedObjectsList::Request &request,
     irp6_grasping_msgs::GetRecognizedObjectsList::Response &response)
 {
-  if (!object_pose_estimator_->canEstimatePose(view_id_) ||
-      object_pose_estimator_->getLastPoseEstimationTime() < ros::Time::now() - request.age)
+  if (!object_pose_estimator_->canEstimatePose())// ||
+//      object_pose_estimator_->getLastPoseEstimationTime() < ros::Time::now() - request.age)
   {
     ROS_INFO("No object available.");
     return true;
@@ -264,6 +280,6 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "recognized_objects_pose_estimation");
   ros::NodeHandle nh;
   PoseEstimationNode node;
-  node.start(nh);
+  node.execute(nh);
   return 0;
 }
