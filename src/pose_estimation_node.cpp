@@ -136,7 +136,7 @@ void PoseEstimationNode::publishRecognizedObjects()
 {
   static tf::TransformBroadcaster br;
 
-  if (!object_pose_estimator_->canEstimatePose())
+  if (!object_pose_estimator_->canEstimatePose(view_id_))
     return;
 
   object_recognition_msgs::RecognizedObject estimated_object = createRecognizedObject();
@@ -183,7 +183,7 @@ bool PoseEstimationNode::returnRecognizedObjectPoseServiceCallback(
     irp6_grasping_msgs::GetRecognizedObjectPose::Request &request,
     irp6_grasping_msgs::GetRecognizedObjectPose::Response &response)
 {
-  if (!object_pose_estimator_->canEstimatePose())
+  if (!object_pose_estimator_->canEstimatePose(view_id_))
   {
     response.status = irp6_grasping_msgs::GetRecognizedObjectPose::Response::NO_OBJECTS;
     ROS_INFO("No object available.");
@@ -209,7 +209,7 @@ bool PoseEstimationNode::returnRecognizedObjectsListServiceCallback(
     irp6_grasping_msgs::GetRecognizedObjectsList::Request &request,
     irp6_grasping_msgs::GetRecognizedObjectsList::Response &response)
 {
-  if (!object_pose_estimator_->canEstimatePose() ||
+  if (!object_pose_estimator_->canEstimatePose(view_id_) ||
       object_pose_estimator_->getLastPoseEstimationTime() < ros::Time::now() - request.age)
   {
     ROS_INFO("No object available.");

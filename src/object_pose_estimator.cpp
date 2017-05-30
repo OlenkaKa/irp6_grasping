@@ -67,6 +67,11 @@ bool ObjectPoseEstimator::canEstimatePose() const
   return !view_estimators_.empty();
 }
 
+bool ObjectPoseEstimator::canEstimatePose(int view_id) const
+{
+  return view_estimators_.find(view_id) != view_estimators_.end() && view_estimators_.at(view_id) != NULL;
+}
+
 void ObjectPoseEstimator::estimatePose(int view_id, ros::Time time_stamp, geometry_msgs::Pose pose, double confidence,
                                        PoseData &pose_data)
 {
@@ -85,8 +90,11 @@ void ObjectPoseEstimator::estimatePose(int view_id, ros::Time time_stamp, geomet
 
 void ObjectPoseEstimator::addData(int view_id, object_recognition_msgs::RecognizedObject &object) const
 {
-  SingleViewPoseEstimator *view_estimator = view_estimators_.at(view_id);
-  object.header.stamp = view_estimator->last_update_;
-  object.pose.header.stamp = view_estimator->last_update_;
-  object.pose.pose.pose = view_estimator->pose_;
+  if (view_estimators_.find(view_id) != view_estimators_.end())
+  {
+    SingleViewPoseEstimator *view_estimator = view_estimators_.at(view_id);
+    object.header.stamp = view_estimator->last_update_;
+    object.pose.header.stamp = view_estimator->last_update_;
+    object.pose.pose.pose = view_estimator->pose_;
+  }
 }

@@ -126,7 +126,6 @@ def dummy_highest_grasp_pose_selection( grasp_poses ):
     return ['selected_grasp', grasp_poses[max_i][1], grasp_poses[max_i][2]]
 
 
-
 def generate_pregrasp( selected_grasp ):
     # pregrasp pose: along z by -10 cm.
     # pose = selected_grasp[1] * PyKDL.Frame(PyKDL.Rotation.RPY(0, 0, 0),PyKDL.Vector(0.0, 0.0, -0.20))
@@ -183,7 +182,7 @@ def get_object_to_grasp():
     if len(oids.object_ids) == 0:
         print "ERROR: Cannot recognize any objects!"
         time.sleep(1)
-        return False, None
+        return None, None
     # List all objects.
     for oid in oids.object_ids:
         print 'Recognized Object {0} with confidence {1:.4f}'.format(oid.id, oid.confidence)
@@ -194,18 +193,27 @@ def get_object_to_grasp():
     ret = get_recognized_object_pose(id, rospy.Time(5))
     if (ret.status != GetRecognizedObjectPoseResponse.OBJECT_FOUND):
         print 'ERROR: Pose of object ', id, 'could not be recovered!'
-        return False, None
+        return None, None
     # Else - let's grab it!
     # print 'Object x= {0:.4f} y={1:.4f} z={2:.4f}'.format(ret.object.pose.pose.pose.position.x,ret.object.pose.pose.pose.position.y,ret.object.pose.pose.pose.position.z)
     # Broadcast TF with object pose.
     obj_pose = posemath.fromMsg(ret.object.pose.pose.pose)
     broadcast_pose(br, obj_pose, ret.object.type.key, ret.object.header.frame_id)
-    return True, obj_pose
+    return id, obj_pose
 
 def observe_scene(view_id, observation_time):
     set_estimate_pose(True, view_id)
     time.sleep(observation_time)
     set_estimate_pose(False, view_id)
+
+def move_up_object(obj_pose, obj_id):
+    model_translation = None
+    for model in object_models:
+        if model[0] == obj_id:
+            model_translation = PyKDL.Vector(model[1].x() / 2, 0, model[1].z() / 2)
+            break
+    global_translation = obj_pose * model_translation + PyKDL.Vector(-0.05, 0, 0.1)
+    return Point(global_translation.x(), global_translation.y(), global_translation.z())
 
 if __name__ == "__main__":
     set_estimate_pose(False, 1)
@@ -226,6 +234,7 @@ if __name__ == "__main__":
     else:
         print 'Incorrect robot name'
         sys.exit()
+    irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.25), Quaternion(0.0, 0.0, 0.0, 1.0)))
 
     # Initialize node
     #rospy.init_node('irp6_grasping')
@@ -254,25 +263,31 @@ if __name__ == "__main__":
             irpos.move_to_joint_position(front_desired_joints, 20.00)
         else:
             print '%s standing in front position' % robot_name
-        observe_scene(1, 30.0)
-        status, obj_pose = get_object_to_grasp()
-        if status is not True:
+        observe_scene(1, 10.0)
+        obj_id, obj_pose = get_object_to_grasp()
+        if obj_id is None:
+            print "ERROR: Cannot find object in view 1"
             continue
 
-        next_irpos_position = Point(obj_pose.p.x(), obj_pose.p.y(), obj_pose.p.z())
-        next_irpos_position.z += 0.1
+        next_irpos_position = move_up_object(obj_pose, obj_id)
         irpos.move_to_cartesian_pose(10.0, Pose(next_irpos_position, Quaternion(0, 1, 0, 0)))
-        observe_scene(1, 30.0)
-        status, obj_pose = get_object_to_grasp()
-        if status is not True:
+        observe_scene(2, 30.0)
+        obj_id, obj_pose = get_object_to_grasp()
+        if obj_id is None:
+            print "ERROR: Cannot find object in view 2"
             continue
 
         irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.5), Quaternion(0.0, 0.0, 0.0, 1.0)))
-        observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))
+        # observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, -0.9396926207859083)) # w lewo
+        # observe_pose = Pose(Point(0.0, 0.0, 0.0), Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083))    # w prawo
+        observe_quat = Quaternion(-0.3420201433256687, 0.0, 0.0, 0.9396926207859083) if irpos.get_cartesian_pose().position.y > 0 else Quaternion(-0.3420201433256687, 0.0, 0.0, -0.9396926207859083)
+        observe_pose = Pose(Point(0.0, 0.0, 0.0), observe_quat)
         irpos.move_rel_to_cartesian_pose(30.0, observe_pose)
+        irpos.set_tool_geometry_params(Pose(Point(0.0, 0.0, 0.25), Quaternion(0.0, 0.0, 0.0, 1.0)))
         observe_scene(3, 30.0)
-        status, obj_pose = get_object_to_grasp()
-        if status is not True:
+        obj_id, obj_pose = get_object_to_grasp()
+        if obj_id is None:
+            print "ERROR: Cannot find object in view 3"
             continue
 
         # Generate grasps in object reference frame

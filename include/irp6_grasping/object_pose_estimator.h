@@ -18,6 +18,7 @@ public:
   ~ObjectPoseEstimator();
   ros::Time getLastPoseEstimationTime() const;
   bool canEstimatePose() const;
+  bool canEstimatePose(int view_id) const;
   void estimatePose(int view_id, ros::Time time_stamp, geometry_msgs::Pose pose, double confidence,
                     PoseData &pose_data);
 
