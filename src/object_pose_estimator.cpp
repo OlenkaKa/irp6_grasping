@@ -27,26 +27,47 @@ ObjectPoseEstimator::SingleViewPoseEstimator::~SingleViewPoseEstimator()
 }
 
 void ObjectPoseEstimator::SingleViewPoseEstimator::estimatePose(const ros::Time &last_update, const geometry_msgs::Pose &pose,
-                                                                double confidence)
+                                                                double confidence, const string &object_pose_estimation_strategy)
 {
-  geometry_msgs::Pose estimated_pose;
+  if (object_pose_estimation_strategy.compare("kalman") == 0)
+  {
+    kalman_->fillMeasurements(pose, measurements_);
+    kalman_->updateKalmanFilter(measurements_, pose_);
 
-  kalman_->fillMeasurements(pose, measurements_);
-  kalman_->updateKalmanFilter(measurements_, estimated_pose);
-
-  pose_ = estimated_pose;
-
-  double estimation_confidence = (confidence_ + confidence) / 2;
-  confidence_ = estimation_confidence > 1.0 ? 1.0 : estimation_confidence;
-
+    double estimation_confidence = (confidence_ + confidence) / 2;
+    confidence_ = estimation_confidence > 1.0 ? 1.0 : estimation_confidence;
+  }
+  else if (object_pose_estimation_strategy.compare("highest_confidence") == 0)
+  {
+    if (confidence > confidence_)
+    {
+      pose_ = pose;
+      confidence_ = confidence;
+    }
+  }
   last_update_ = last_update;
+}
+
+void ObjectPoseEstimator::SingleViewPoseEstimator::getCurrentPoseData(PoseData &pose_data,
+                                                                      const std::string &object_pose_estimation_strategy)
+{
+  if (object_pose_estimation_strategy.compare("kalman") == 0)
+    kalman_->getCurrentPoseData(pose_data);
+  else if (object_pose_estimation_strategy.compare("highest_confidence") == 0)
+  {
+    pose_data.position = pose_.position;
+//    pose_data.orientation = pose_.orientation;
+  }
 }
 
 // ObjectPoseEstimator
 
-ObjectPoseEstimator::ObjectPoseEstimator(double min_confidence)
-  : min_confidence_(min_confidence)
+ObjectPoseEstimator::ObjectPoseEstimator(const string &object_pose_estimation_strategy, double min_confidence)
+  : object_pose_estimation_strategy_(object_pose_estimation_strategy), min_confidence_(min_confidence)
 {
+  if (object_pose_estimation_strategy.compare("kalman") != 0 &&
+      object_pose_estimation_strategy.compare("highest_confidence") != 0)
+    throw invalid_argument("Invalid object pose estimation strategy: " + object_pose_estimation_strategy);
 }
 
 ObjectPoseEstimator::~ObjectPoseEstimator()
@@ -93,8 +114,8 @@ void ObjectPoseEstimator::estimatePose(int view_id, ros::Time time_stamp, geomet
   else if (confidence > min_confidence_)
   {
     SingleViewPoseEstimator *view_estimator = view_estimators_.at(view_id);
-    view_estimator->estimatePose(time_stamp, pose, confidence);
-    view_estimator->kalman_->getCurrentPoseData(pose_data);
+    view_estimator->estimatePose(time_stamp, pose, confidence, object_pose_estimation_strategy_);
+    view_estimator->getCurrentPoseData(pose_data, object_pose_estimation_strategy_);
 
     ROS_INFO("view: %d\t\treceived confidence %f\t\tresult confidence: %f", view_id, confidence, view_estimator->confidence_);
   }
@@ -115,12 +136,11 @@ void ObjectPoseEstimator::addData(int view_id, object_recognition_msgs::Recogniz
 void ObjectPoseEstimator::addData(object_recognition_msgs::RecognizedObject &object) const
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  int view_id;
-  const SingleViewPoseEstimator &view_estimator = findBestEstimationView(view_id);
-  ROS_INFO("Best estimation view_id: %d, confidence: %f", view_id, view_estimator.confidence_);
-  object.header.stamp = view_estimator.last_update_;
-  object.pose.header.stamp = view_estimator.last_update_;
-  object.pose.pose.pose = view_estimator.pose_;
+  const pair<int, ObjectPoseEstimator::SingleViewPoseEstimator*> &view_estimator_pair = findBestEstimationView();
+  ROS_INFO("Best estimation view_id: %d, confidence: %f", view_estimator_pair.first, view_estimator_pair.second->confidence_);
+  object.header.stamp = view_estimator_pair.second->last_update_;
+  object.pose.header.stamp = view_estimator_pair.second->last_update_;
+  object.pose.pose.pose = view_estimator_pair.second->pose_;
 }
 
 void ObjectPoseEstimator::clear()
@@ -133,23 +153,14 @@ void ObjectPoseEstimator::clearView(int view_id)
   view_estimators_.erase(view_id);
 }
 
-const ObjectPoseEstimator::SingleViewPoseEstimator& ObjectPoseEstimator::findBestEstimationView() const {
-  return *std::max_element(view_estimators_.begin(), view_estimators_.end(),
+pair<int, ObjectPoseEstimator::SingleViewPoseEstimator*> ObjectPoseEstimator::findBestEstimationView() const {
+  if (view_estimators_.size() == 1)
+    return *view_estimators_.begin();
+
+  return *std::max_element(++view_estimators_.begin(), view_estimators_.end(),
                   [](const pair<int, SingleViewPoseEstimator *> &p1,
                      const pair<int, SingleViewPoseEstimator *> &p2)
                   {
                       return p1.second->confidence_ < p2.second->confidence_;
-                  })->second;
-}
-
-// TODO remove
-const ObjectPoseEstimator::SingleViewPoseEstimator& ObjectPoseEstimator::findBestEstimationView(int &view_id) const {
-  auto res = std::max_element(view_estimators_.begin(), view_estimators_.end(),
-                           [](const pair<int, SingleViewPoseEstimator *> &p1,
-                              const pair<int, SingleViewPoseEstimator *> &p2)
-                           {
-                               return p1.second->confidence_ < p2.second->confidence_;
-                           });
-  view_id = 2;
-  return *(view_estimators_.at(view_estimators_.find(2) == view_estimators_.end() ? 1 : 2));
+                  });
 }

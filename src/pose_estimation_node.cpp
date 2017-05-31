@@ -18,19 +18,20 @@ using namespace cv;
 void PoseEstimationNode::execute(ros::NodeHandle &nh)
 {
   // Read parameters
-  std::string object_id;
-  bool use_kalman_filter;
+  string object_id;
+  string object_pose_estimation_strategy;
   double min_object_confidence;
-  std::string result_root_dir;
+  string result_root_dir;
 
   nh.param<string>("world_frame_id", world_frame_id, "/tl_base");
-  nh.param<string>("object_id", object_id, "herbapol_mieta1");
+  nh.param<string>("object_id", object_id, "herbapol_mieta");
+  nh.param<string>("object_pose_estimation_strategy", object_pose_estimation_strategy, "kalman");
   nh.param<double>("min_object_confidence", min_object_confidence, 0.5);
   nh.param<string>("result_root_dir", result_root_dir, "~");
 
   object_model_.setId(object_id);
 
-  object_pose_estimator_ = new ObjectPoseEstimator(min_object_confidence);
+  object_pose_estimator_ = new ObjectPoseEstimator(object_pose_estimation_strategy, min_object_confidence);
 
   result_writer_ = new ResultFileWriter("pose_estimation", result_root_dir);
 

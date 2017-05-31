@@ -15,7 +15,7 @@ namespace irp6_grasping
 class ObjectPoseEstimator
 {
 public:
-  ObjectPoseEstimator(double min_confidence);
+  ObjectPoseEstimator(const std::string &object_pose_estimation_strategy, double min_confidence);
   ~ObjectPoseEstimator();
 
   ros::Time getLastPoseEstimationTime() const;
@@ -37,7 +37,8 @@ private:
   {
     SingleViewPoseEstimator(const ros::Time &time, const geometry_msgs::Pose &pose, double confidence);
     ~SingleViewPoseEstimator();
-    void estimatePose(const ros::Time &time, const geometry_msgs::Pose &pose, double confidence);
+    void estimatePose(const ros::Time &time, const geometry_msgs::Pose &pose, double confidence, const std::string &object_pose_estimation_strategy);
+    void getCurrentPoseData(PoseData &pose_data, const std::string &object_pose_estimation_strategy);
 
     ros::Time last_update_;
     double confidence_;
@@ -46,10 +47,10 @@ private:
     cv::Mat measurements_;
   };
 
-  const SingleViewPoseEstimator& findBestEstimationView() const;
-    const SingleViewPoseEstimator& findBestEstimationView(int &view_id) const;
+  std::pair<int, SingleViewPoseEstimator*> findBestEstimationView() const;
 
   std::map<int, SingleViewPoseEstimator *> view_estimators_;
+  std::string object_pose_estimation_strategy_;
   double min_confidence_;
   mutable std::mutex mutex_;
 };

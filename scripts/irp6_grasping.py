@@ -33,6 +33,7 @@ predefined_grasps = [
 # width, height, depth (along x,y,z)
 object_models = [
     ['herbapol_mieta1', PyKDL.Vector(0.140, -0.075, 0.064)],
+    ['herbapol_mieta', PyKDL.Vector(0.140, -0.075, 0.064)],
     ['ahmad1', PyKDL.Vector(0.125, -0.085, 0.085)],
     ['lipton_earl_grey_classic1', PyKDL.Vector(0.149, -0.061, 0.040)],
     ['tabasco', PyKDL.Vector(0.142, -0.040, 0.040)]
