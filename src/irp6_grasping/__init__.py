@@ -1,2 +1,2 @@
-from GraspingIRPOS import *
-__all__ = ['GraspingIRPOS']
+from GraspingIRPOS import GraspingIRPOS
+
