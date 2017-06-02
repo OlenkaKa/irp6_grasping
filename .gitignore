@@ -1,6 +1,7 @@
 build/
 bin/
 cmake_build_debug/
+cmake-build-debug/
 lib/
 msg_gen/
 srv_gen/
