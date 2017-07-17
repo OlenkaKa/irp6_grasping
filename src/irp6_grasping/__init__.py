@@ -1,2 +1,2 @@
+from WatchingIRPOS import WatchingIRPOS
 from GraspingIRPOS import GraspingIRPOS
-
