@@ -134,7 +134,7 @@ class WatchingIRPOS(IRPOS):
         try:
             proxy = rospy.ServiceProxy('return_recognized_objects_list', GetRecognizedObjectsList)
             # Get list of objects - objects being perceived in last 1 seconds without limit for their number (0).
-            return proxy(rospy.Time(1), 0)
+            return proxy(rospy.Time(1), 0).object_ids
         except rospy.ServiceException, e:
             _print_error_message('Service call failed: %s' % e)
 
