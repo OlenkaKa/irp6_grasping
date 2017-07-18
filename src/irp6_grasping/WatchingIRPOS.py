@@ -3,10 +3,11 @@
 
 import rospy
 
+from functools import wraps
+from geometry_msgs.msg import Vector3Stamped
 from irp6_grasping_msgs.srv import *
 from irpos import IRPOS
 from threading import Lock
-from functools import wraps
 
 
 def _print_message(message):
@@ -42,6 +43,7 @@ class WatchingIRPOS(IRPOS):
         self._estimate_object_pose = False
         IRPOS.__init__(self, nodeName, robotName, robotJointNumbers, scheme_name)
 
+
     ### OVERRIDE MOVE METHODS
 
     move_to_synchro_position = _stop_object_pose_estimation_wrapper(IRPOS.move_to_synchro_position.__func__)
@@ -69,6 +71,7 @@ class WatchingIRPOS(IRPOS):
         IRPOS.move_along_cartesian_trajectory.__func__)
 
     move_along_cartesian_circle = _stop_object_pose_estimation_wrapper(IRPOS.move_along_cartesian_circle.__func__)
+
 
     ## OPTOFORCE CONTROLLER
 
@@ -115,6 +118,7 @@ class WatchingIRPOS(IRPOS):
         optoforce1_sub.unregister()
         optoforce2_sub.unregister()
 
+
     ### OBJECT POSE ESTIMATION
 
     def start_scene_observation(self, view_id):
@@ -123,11 +127,13 @@ class WatchingIRPOS(IRPOS):
             set_estimate_pose(True, view_id)
             self._estimate_object_pose = True
 
+
     def stop_scene_observation(self):
         _print_message('Stop scene observation')
         if self._estimate_object_pose:
             set_estimate_pose(False, 1)
             self._estimate_object_pose = False
+
 
     def get_scene_objects(self):
         rospy.wait_for_service('return_recognized_objects_list')
@@ -137,6 +143,7 @@ class WatchingIRPOS(IRPOS):
             return proxy(rospy.Time(1), 0).object_ids
         except rospy.ServiceException, e:
             _print_error_message('Service call failed: %s' % e)
+
 
     def get_scene_object_info(self, object_id):
         rospy.wait_for_service('return_recognized_object_pose')
