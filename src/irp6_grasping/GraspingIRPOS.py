@@ -3,7 +3,9 @@
 
 import math
 import PyKDL
-
+import rospy
+import time
+import tf
 import tf_conversions.posemath as posemath
 
 from collections import namedtuple
@@ -25,6 +27,8 @@ def _print_error_message(message):
 class GraspingIRPOS(WatchingIRPOS):
     def __init__(self, nodeName, robotName, robotJointNumbers, scheme_name):
         WatchingIRPOS.__init__(self, nodeName, robotName, robotJointNumbers, scheme_name)
+        self._br = tf.TransformBroadcaster()
+        time.sleep(1)
 
 
     ### GRASPING
@@ -40,9 +44,7 @@ class GraspingIRPOS(WatchingIRPOS):
             _print_error_message('Cannot grasp object with id "%s" - object not found' % object_id)
             return
 
-        object_pose = posemath.fromMsg(object_info.pose.pose.pose) * PyKDL.Frame(
-            PyKDL.Rotation.RPY(0, -math.pi, 0),
-            PyKDL.Vector(0, 0, 0))
+        object_pose = posemath.fromMsg(object_info.pose.pose.pose)
 
         Size = namedtuple('Size', ['x', 'y', 'z'])
         x, y, z = None, None, None
@@ -56,6 +58,9 @@ class GraspingIRPOS(WatchingIRPOS):
 
         object_size = Size(x, y, z)
         object_side_poses = self._calculate_side_poses(object_pose, object_size)
+
+        for idx, side_pose in enumerate(object_side_poses):
+            self._broadcast_pose(side_pose, object_info.type.key, object_info.header.frame_id + str(idx))
 
         # Chwytak ustawiony 2cm poniżej górnej ścianki
         grasp_pose = self._select_highest_pose(object_side_poses) * PyKDL.Frame(
@@ -81,24 +86,31 @@ class GraspingIRPOS(WatchingIRPOS):
 
         _print_main_message('Grasp object with id "%s" finished' % object_id)
 
+    def _broadcast_pose(self, pm_pose, child_frame_id, parent_id):
+        self._br.sendTransform(
+            pm_pose.p,
+            pm_pose.M.GetQuaternion(),
+            rospy.Time.now(),
+            child_frame_id,
+            parent_id)
 
     @staticmethod
     def _calculate_side_poses(pose, size):
         top = pose * PyKDL.Frame(
             PyKDL.Rotation.RPY(math.pi, 0, 0),
-            PyKDL.Vector(size.x / 2, size.y / 2, size.z))
+            PyKDL.Vector(size.x / 2, -size.y / 2, size.z))
 
         bottom = pose * PyKDL.Frame(
             PyKDL.Rotation.RPY(0, 0, 0),
-            PyKDL.Vector(size.x / 2, size.y / 2, 0))
+            PyKDL.Vector(size.x / 2, -size.y / 2, 0))
 
         left = pose * PyKDL.Frame(
             PyKDL.Rotation.RPY(math.pi / 2, 0, math.pi / 2),
-            PyKDL.Vector(0, size.y / 2, size.z / 2))
+            PyKDL.Vector(0, -size.y / 2, size.z / 2))
 
         right = pose * PyKDL.Frame(
             PyKDL.Rotation.RPY(math.pi / 2, 0, -math.pi / 2),
-            PyKDL.Vector(size.x, size.y / 2, size.z / 2))
+            PyKDL.Vector(size.x, -size.y / 2, size.z / 2))
 
         front = pose * PyKDL.Frame(
             PyKDL.Rotation.RPY(math.pi / 2, 0, 0),
@@ -106,7 +118,7 @@ class GraspingIRPOS(WatchingIRPOS):
 
         back = pose * PyKDL.Frame(
             PyKDL.Rotation.RPY(-math.pi / 2, 0, 0),
-            PyKDL.Vector(size.x / 2, size.y, size.z / 2))
+            PyKDL.Vector(size.x / 2, -size.y, size.z / 2))
 
         return top, bottom, left, right, front, back
 
