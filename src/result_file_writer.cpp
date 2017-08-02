@@ -21,7 +21,7 @@ ResultFileWriter::ResultFileWriter(const string &id, const string &dir_name)
 
   ofstream file;
   file.open(file_name_.c_str());
-  file << "time,x,y,z,roll,pitch,yaw\n";
+  file << "time,x,y,z,roll,pitch,yaw,dx,dy,dz,droll,dpitch,dyaw\n";
   file.close();
 }
 
@@ -30,7 +30,10 @@ void ResultFileWriter::writePoseData(const PoseData &data)
   ofstream file;
   file.open(file_name_.c_str(), ios::app);
   file.setf(ios::fixed, ios::floatfield);
-  file << ros::Time::now().toSec() << ',' << data.position.x << ',' << data.position.y << ',' << data.position.z << ','
-       << data.orientation.x << ',' << data.orientation.y << ',' << data.orientation.z << '\n';
+  file << ros::Time::now().toSec() << ','
+       << data.position.x << ',' << data.position.y << ',' << data.position.z << ','
+       << data.orientation.x << ',' << data.orientation.y << ',' << data.orientation.z << ','
+       << data.velocity.linear.x << ',' << data.velocity.linear.y << ',' << data.velocity.linear.z << ','
+       << data.velocity.angular.x << ',' << data.velocity.angular.y << ',' << data.velocity.angular.z <<'\n';
   file.close();
 }

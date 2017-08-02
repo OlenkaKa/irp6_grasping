@@ -22,7 +22,7 @@ class PoseData
 public:
   geometry_msgs::Point position;       // x, y, z
   geometry_msgs::Vector3 orientation;  // roll, pitch, yaw
-  //    geometry_msgs::Twist velocity;
+  geometry_msgs::Twist velocity;
   //    geometry_msgs::Accel acceleration;
   //
   //    cv::Mat processNoiseCov;

@@ -12,7 +12,7 @@
 using namespace irp6_grasping;
 using namespace cv;
 
-const int nStates = 18;       // the number of states
+const int nStates = 12;       // the number of states
 const int nMeasurements = 6;  // the number of measured states
 const int nInputs = 0;        // the number of action control
 
@@ -24,61 +24,43 @@ void PoseKalmanFilter::initKalmanFilter(double dt)
   cv::setIdentity(kf_.errorCovPost, cv::Scalar::all(1));            // error covariance
 
   /* DYNAMIC MODEL */
-  //  [1 0 0 dt  0  0 dt2   0   0 0 0 0  0  0  0   0   0   0]
-  //  [0 1 0  0 dt  0   0 dt2   0 0 0 0  0  0  0   0   0   0]
-  //  [0 0 1  0  0 dt   0   0 dt2 0 0 0  0  0  0   0   0   0]
-  //  [0 0 0  1  0  0  dt   0   0 0 0 0  0  0  0   0   0   0]
-  //  [0 0 0  0  1  0   0  dt   0 0 0 0  0  0  0   0   0   0]
-  //  [0 0 0  0  0  1   0   0  dt 0 0 0  0  0  0   0   0   0]
-  //  [0 0 0  0  0  0   1   0   0 0 0 0  0  0  0   0   0   0]
-  //  [0 0 0  0  0  0   0   1   0 0 0 0  0  0  0   0   0   0]
-  //  [0 0 0  0  0  0   0   0   1 0 0 0  0  0  0   0   0   0]
-  //  [0 0 0  0  0  0   0   0   0 1 0 0 dt  0  0 dt2   0   0]
-  //  [0 0 0  0  0  0   0   0   0 0 1 0  0 dt  0   0 dt2   0]
-  //  [0 0 0  0  0  0   0   0   0 0 0 1  0  0 dt   0   0 dt2]
-  //  [0 0 0  0  0  0   0   0   0 0 0 0  1  0  0  dt   0   0]
-  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  1  0   0  dt   0]
-  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  0  1   0   0  dt]
-  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  0  0   1   0   0]
-  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  0  0   0   1   0]
-  //  [0 0 0  0  0  0   0   0   0 0 0 0  0  0  0   0   0   1]
+  //  [1 0 0 dt  0  0 0 0 0  0  0  0]
+  //  [0 1 0  0 dt  0 0 0 0  0  0  0]
+  //  [0 0 1  0  0 dt 0 0 0  0  0  0]
+  //  [0 0 0  1  0  0 0 0 0  0  0  0]
+  //  [0 0 0  0  1  0 0 0 0  0  0  0]
+  //  [0 0 0  0  0  1 0 0 0  0  0  0]
+  //  [0 0 0  0  0  0 1 0 0 dt  0  0]
+  //  [0 0 0  0  0  0 0 1 0  0 dt  0]
+  //  [0 0 0  0  0  0 0 0 1  0  0 dt]
+  //  [0 0 0  0  0  0 0 0 0  1  0  0]
+  //  [0 0 0  0  0  0 0 0 0  0  1  0]
+  //  [0 0 0  0  0  0 0 0 0  0  0  1]
 
   // position
   kf_.transitionMatrix.at<double>(0, 3) = dt;
   kf_.transitionMatrix.at<double>(1, 4) = dt;
   kf_.transitionMatrix.at<double>(2, 5) = dt;
-  kf_.transitionMatrix.at<double>(3, 6) = dt;
-  kf_.transitionMatrix.at<double>(4, 7) = dt;
-  kf_.transitionMatrix.at<double>(5, 8) = dt;
-  kf_.transitionMatrix.at<double>(0, 6) = 0.5 * pow(dt, 2);
-  kf_.transitionMatrix.at<double>(1, 7) = 0.5 * pow(dt, 2);
-  kf_.transitionMatrix.at<double>(2, 8) = 0.5 * pow(dt, 2);
 
   // orientation
-  kf_.transitionMatrix.at<double>(9, 12) = dt;
-  kf_.transitionMatrix.at<double>(10, 13) = dt;
-  kf_.transitionMatrix.at<double>(11, 14) = dt;
-  kf_.transitionMatrix.at<double>(12, 15) = dt;
-  kf_.transitionMatrix.at<double>(13, 16) = dt;
-  kf_.transitionMatrix.at<double>(14, 17) = dt;
-  kf_.transitionMatrix.at<double>(9, 15) = 0.5 * pow(dt, 2);
-  kf_.transitionMatrix.at<double>(10, 16) = 0.5 * pow(dt, 2);
-  kf_.transitionMatrix.at<double>(11, 17) = 0.5 * pow(dt, 2);
+  kf_.transitionMatrix.at<double>(6, 9) = dt;
+  kf_.transitionMatrix.at<double>(7, 10) = dt;
+  kf_.transitionMatrix.at<double>(8, 11) = dt;
 
   /* MEASUREMENT MODEL */
-  //  [1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-  //  [0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-  //  [0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-  //  [0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0]
-  //  [0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0]
-  //  [0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0]
+  //  [1 0 0 0 0 0 0 0 0 0 0 0]
+  //  [0 1 0 0 0 0 0 0 0 0 0 0]
+  //  [0 0 1 0 0 0 0 0 0 0 0 0]
+  //  [0 0 0 0 0 0 1 0 0 0 0 0]
+  //  [0 0 0 0 0 0 0 1 0 0 0 0]
+  //  [0 0 0 0 0 0 0 0 1 0 0 0]
 
   kf_.measurementMatrix.at<double>(0, 0) = 1;   // x
   kf_.measurementMatrix.at<double>(1, 1) = 1;   // y
   kf_.measurementMatrix.at<double>(2, 2) = 1;   // z
-  kf_.measurementMatrix.at<double>(3, 9) = 1;   // roll
-  kf_.measurementMatrix.at<double>(4, 10) = 1;  // pitch
-  kf_.measurementMatrix.at<double>(5, 11) = 1;  // yaw
+  kf_.measurementMatrix.at<double>(3, 6) = 1;   // roll
+  kf_.measurementMatrix.at<double>(4, 7) = 1;   // pitch
+  kf_.measurementMatrix.at<double>(5, 8) = 1;   // yaw
 }
 
 void PoseKalmanFilter::initMeasurements(cv::Mat &measurements)
@@ -118,9 +100,9 @@ void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_m
 
   // Estimated euler angles
   geometry_msgs::Vector3 rpy;
-  rpy.x = estimated.at<double>(9);
-  rpy.y = estimated.at<double>(10);
-  rpy.z = estimated.at<double>(11);
+  rpy.x = estimated.at<double>(6);
+  rpy.y = estimated.at<double>(7);
+  rpy.z = estimated.at<double>(8);
   estimated_pose.orientation = rot2quat(rpy);
 
 //  ROS_INFO("Estimated position: %f %f %f", estimated_pose.position.x, estimated_pose.position.y,
@@ -136,17 +118,17 @@ void PoseKalmanFilter::getCurrentPoseData(PoseData &pose_data)
   pose_data.position.x = state.at<double>(0);
   pose_data.position.y = state.at<double>(1);
   pose_data.position.z = state.at<double>(2);
-  pose_data.orientation.x = state.at<double>(9);
-  pose_data.orientation.y = state.at<double>(10);
-  pose_data.orientation.z = state.at<double>(11);
+  pose_data.orientation.x = state.at<double>(6);
+  pose_data.orientation.y = state.at<double>(7);
+  pose_data.orientation.z = state.at<double>(8);
 
-  //    // Velocity
-  //    pose_data.velocity.linear.x = state.at<double>(3);
-  //    pose_data.velocity.linear.y = state.at<double>(4);
-  //    pose_data.velocity.linear.z = state.at<double>(5);
-  //    pose_data.velocity.angular.x = state.at<double>(12);
-  //    pose_data.velocity.angular.y = state.at<double>(13);
-  //    pose_data.velocity.angular.z = state.at<double>(14);
+  // Velocity
+  pose_data.velocity.linear.x = state.at<double>(3);
+  pose_data.velocity.linear.y = state.at<double>(4);
+  pose_data.velocity.linear.z = state.at<double>(5);
+  pose_data.velocity.angular.x = state.at<double>(9);
+  pose_data.velocity.angular.y = state.at<double>(10);
+  pose_data.velocity.angular.z = state.at<double>(11);
   //
   //    // Acceleration
   //    pose_data.acceleration.linear.x = state.at<double>(6);

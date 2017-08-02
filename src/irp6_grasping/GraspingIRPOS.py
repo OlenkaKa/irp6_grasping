@@ -65,7 +65,7 @@ class GraspingIRPOS(WatchingIRPOS):
         # Chwytak ustawiony 2cm poniżej górnej ścianki
         grasp_pose = self._select_highest_pose(object_side_poses) * PyKDL.Frame(
             PyKDL.Rotation.RPY(0, 0, 0),
-            PyKDL.Vector(0, 0, 0.02))
+            PyKDL.Vector(0, 0, 0.03))
 
         # Chwytak ustawiony 5cm powyżej pozycji chwytu obiektu
         pregrasp_pose = grasp_pose * PyKDL.Frame(

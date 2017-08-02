@@ -79,9 +79,9 @@ class WatchingIRPOS(IRPOS):
         _print_message('Tfg to joint position with contact')
 
         class OptoforceData:
-            def __init__(self, optoforce_initial_value):
-                self.no_contact_average_measurement = 0
-                self.contact_difference = 17
+            def __init__(self, no_contact_average_measurement, contact_difference, optoforce_initial_value):
+                self.no_contact_average_measurement = no_contact_average_measurement
+                self.contact_difference = contact_difference
                 self.lock = Lock()
                 self.contact = None
                 self.check_if_contact(optoforce_initial_value)
@@ -91,14 +91,14 @@ class WatchingIRPOS(IRPOS):
                 with self.lock:
                     self.contact = abs(value - self.no_contact_average_measurement) > self.contact_difference
                     if not self.contact:
-                        self.no_contact_average_measurement = (self.no_contact_average_measurement + value) / 2
+                        self.no_contact_average_measurement = (2 * self.no_contact_average_measurement + value) / 3
 
         delta = 0.003
         optoforce1_topic = '/optoforce1/force0'
         optoforce2_topic = '/optoforce2/force0'
 
-        optoforce1_data = OptoforceData(rospy.wait_for_message(optoforce1_topic, Vector3Stamped))
-        optoforce2_data = OptoforceData(rospy.wait_for_message(optoforce2_topic, Vector3Stamped))
+        optoforce1_data = OptoforceData(-30, 16, rospy.wait_for_message(optoforce1_topic, Vector3Stamped))
+        optoforce2_data = OptoforceData(90, 16, rospy.wait_for_message(optoforce2_topic, Vector3Stamped))
 
         optoforce1_sub = rospy.Subscriber(optoforce1_topic, Vector3Stamped, optoforce1_data.check_if_contact)
         optoforce2_sub = rospy.Subscriber(optoforce2_topic, Vector3Stamped, optoforce2_data.check_if_contact)

@@ -139,6 +139,7 @@ void ObjectPoseEstimator::addData(object_recognition_msgs::RecognizedObject &obj
   const pair<int, ObjectPoseEstimator::SingleViewPoseEstimator*> &view_estimator_pair = findBestEstimationView();
   ROS_INFO("Best estimation view_id: %d, confidence: %f", view_estimator_pair.first, view_estimator_pair.second->confidence_);
   object.header.stamp = view_estimator_pair.second->last_update_;
+  object.confidence = (float) view_estimator_pair.second->confidence_;
   object.pose.header.stamp = view_estimator_pair.second->last_update_;
   object.pose.pose.pose = view_estimator_pair.second->pose_;
 }
