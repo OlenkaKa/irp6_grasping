@@ -10,6 +10,7 @@
 #include <tf/transform_broadcaster.h>
 
 #include <irp6_grasping/pose_estimation_node.h>
+#include <irp6_grasping/transform_util.h>
 
 using namespace irp6_grasping;
 using namespace std;
@@ -18,23 +19,19 @@ using namespace cv;
 void PoseEstimationNode::execute(ros::NodeHandle &nh)
 {
   // Read parameters
-  string object_id;
   string object_pose_estimation_strategy;
   double min_object_confidence;
   string result_root_dir;
 
   nh.param<string>("world_frame_id", world_frame_id, "/tl_base");
-  nh.param<string>("object_id", object_id, "herbapol_mieta");
   nh.param<string>("object_pose_estimation_strategy", object_pose_estimation_strategy, "kalman");
   nh.param<double>("min_object_confidence", min_object_confidence, 0.5);
   nh.param<string>("result_root_dir", result_root_dir, "~");
 
-  object_model_.setId(object_id);
-
   object_pose_estimator_ = new ObjectPoseEstimator(object_pose_estimation_strategy, min_object_confidence);
 
   result_writer_ = new ResultFileWriter("pose_estimation", result_root_dir);
-
+  input_writer_ = new ResultFileWriter("pose_input", result_root_dir);
   // Initialize services.
   ros::ServiceServer estimate_pose =
       nh.advertiseService<irp6_grasping_msgs::EstimatePose::Request, irp6_grasping_msgs::EstimatePose::Response>(
@@ -68,6 +65,7 @@ void PoseEstimationNode::finish()
   delete object_pose_estimator_;
   delete marker_publisher_;
   delete result_writer_;
+  delete input_writer_;
 }
 
 object_recognition_msgs::RecognizedObject PoseEstimationNode::createViewRecognizedObject() const
@@ -90,30 +88,6 @@ object_recognition_msgs::RecognizedObject PoseEstimationNode::createRecognizedOb
   return object;
 }
 
-geometry_msgs::Pose PoseEstimationNode::transformPose(const geometry_msgs::Pose &start_pose,
-                                                      const tf::StampedTransform &end_tf)
-{
-  tf::Transform start_tf;
-  tf::poseMsgToTF(start_pose, start_tf);
-  tf::Transform start_end_tf = end_tf * start_tf;
-
-  geometry_msgs::Pose transformed_pose;
-  tf::poseTFToMsg(start_end_tf, transformed_pose);
-  return transformed_pose;
-}
-
-geometry_msgs::Point PoseEstimationNode::transformPoint(const geometry_msgs::Point &point, const tf::Transform tf)
-{
-  tf::Point initial_tf_point(point.x, point.y, point.z);
-  tf::Point result_tf_point = tf * initial_tf_point;
-
-  geometry_msgs::Point result_point;
-  result_point.x = result_tf_point.getX();
-  result_point.y = result_tf_point.getY();
-  result_point.z = result_tf_point.getZ();
-  return result_point;
-}
-
 void PoseEstimationNode::recognizedObjectCallback(const object_recognition_msgs::RecognizedObject &sensor_object)
 {
   static tf::TransformListener tf_listener;
@@ -131,11 +105,19 @@ void PoseEstimationNode::recognizedObjectCallback(const object_recognition_msgs:
 
     geometry_msgs::Pose sensor_object_world_pose = transformPose(sensor_object.pose.pose.pose, world_sensor_tf);
 
-    object_model_.setBoundingMesh(sensor_object.bounding_mesh);
+    if (!object_model_.isInitialized())
+    {
+      object_model_.setId(sensor_object.type.key);
+      object_model_.setBoundingMesh(sensor_object.bounding_mesh);
+      object_model_.setInitialized(true);
+    }
     PoseData pose_data;
     object_pose_estimator_->estimatePose(view_id_, sensor_object.pose.header.stamp, sensor_object_world_pose,
                                         sensor_object.confidence, pose_data);
-    result_writer_->writePoseData(pose_data);
+
+    ros::Time time_stamp = ros::Time::now();
+    result_writer_->writePoseData(time_stamp, pose_data);
+    input_writer_->writePoseData(time_stamp, PoseData(sensor_object_world_pose));
   }
   catch (tf::TransformException &e)
   {
@@ -174,7 +156,7 @@ bool PoseEstimationNode::estimatePoseCallback(irp6_grasping_msgs::EstimatePose::
                                               irp6_grasping_msgs::EstimatePose::Response &response,
                                               ros::NodeHandle &node_handle)
 {
-  if (request.calculate_pose)
+  if (request.calculate_pose != 0u)
   {
     // TODO
     if (view_id_ > request.view_id) {
@@ -248,7 +230,7 @@ bool PoseEstimationNode::returnRecognizedObjectsListServiceCallback(
   oid.confidence = estimated_object.confidence;
 
   // First case: insert first oid.
-  if (response.object_ids.size() == 0)
+  if (response.object_ids.empty())
   {
     response.object_ids.push_back(oid);
   }
@@ -256,9 +238,7 @@ bool PoseEstimationNode::returnRecognizedObjectsListServiceCallback(
   {
     // Second case: insert in proper order.
     bool added = false;
-    for (vector<irp6_grasping_msgs::ObjectID>::iterator it = response.object_ids.begin(),
-                                                        end_it = response.object_ids.end();
-         it != end_it; ++it)
+    for (auto it = response.object_ids.begin(), end_it = response.object_ids.end(); it != end_it; ++it)
     {
       ROS_DEBUG("Service - iterating: %f < %f ?", it->confidence, oid.confidence);
       if (it->confidence < oid.confidence)

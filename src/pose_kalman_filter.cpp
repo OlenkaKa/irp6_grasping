@@ -4,13 +4,29 @@
  * \note based on pose_estimation.cpp
  */
 
-#include "irp6_grasping/pose_kalman_filter.h"
-
 #include <ros/ros.h>
-#include "tf/transform_datatypes.h"
+
+#include <irp6_grasping/pose_kalman_filter.h>
+#include <irp6_grasping/transform_util.h>
 
 using namespace irp6_grasping;
 using namespace cv;
+
+PoseData::PoseData() = default;
+
+PoseData::PoseData(const geometry_msgs::Pose &pose)
+{
+  position = pose.position;
+  orientation = quat2rot(pose.orientation);
+}
+
+geometry_msgs::Pose PoseData::getPose() const
+{
+  geometry_msgs::Pose result;
+  result.position = position;
+  result.orientation = rot2quat(orientation);
+  return result;
+}
 
 const int nStates = 12;       // the number of states
 const int nMeasurements = 6;  // the number of measured states
@@ -85,7 +101,7 @@ void PoseKalmanFilter::fillMeasurements(const geometry_msgs::Pose &measured_pose
 //  ROS_INFO("Measured roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
 }
 
-void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_msgs::Pose &estimated_pose)
+void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, PoseData &pose_data)
 {
   // First predict, to update the internal statePre variable
   kf_.predict();
@@ -94,80 +110,25 @@ void PoseKalmanFilter::updateKalmanFilter(const cv::Mat &measurement, geometry_m
   Mat estimated = kf_.correct(measurement);
 
   // Estimated translation
-  estimated_pose.position.x = estimated.at<double>(0);
-  estimated_pose.position.y = estimated.at<double>(1);
-  estimated_pose.position.z = estimated.at<double>(2);
+  pose_data.position.x = estimated.at<double>(0);
+  pose_data.position.y = estimated.at<double>(1);
+  pose_data.position.z = estimated.at<double>(2);
 
   // Estimated euler angles
-  geometry_msgs::Vector3 rpy;
-  rpy.x = estimated.at<double>(6);
-  rpy.y = estimated.at<double>(7);
-  rpy.z = estimated.at<double>(8);
-  estimated_pose.orientation = rot2quat(rpy);
+  pose_data.orientation.x = estimated.at<double>(6);
+  pose_data.orientation.y = estimated.at<double>(7);
+  pose_data.orientation.z = estimated.at<double>(8);
 
-//  ROS_INFO("Estimated position: %f %f %f", estimated_pose.position.x, estimated_pose.position.y,
-//           estimated_pose.position.z);
-//  ROS_INFO("Estimated roll-pitch-yaw: %f %f %f", rpy.x, rpy.y, rpy.z);
-}
+  // Estimated translation velocity
+  pose_data.velocity.linear.x = estimated.at<double>(3);
+  pose_data.velocity.linear.y = estimated.at<double>(4);
+  pose_data.velocity.linear.z = estimated.at<double>(5);
 
-void PoseKalmanFilter::getCurrentPoseData(PoseData &pose_data)
-{
-  Mat state = kf_.statePost;
+  // Estimated euler angles velocity
+  pose_data.velocity.angular.x = estimated.at<double>(9);
+  pose_data.velocity.angular.y = estimated.at<double>(10);
+  pose_data.velocity.angular.z = estimated.at<double>(11);
 
-  // Pose
-  pose_data.position.x = state.at<double>(0);
-  pose_data.position.y = state.at<double>(1);
-  pose_data.position.z = state.at<double>(2);
-  pose_data.orientation.x = state.at<double>(6);
-  pose_data.orientation.y = state.at<double>(7);
-  pose_data.orientation.z = state.at<double>(8);
-
-  // Velocity
-  pose_data.velocity.linear.x = state.at<double>(3);
-  pose_data.velocity.linear.y = state.at<double>(4);
-  pose_data.velocity.linear.z = state.at<double>(5);
-  pose_data.velocity.angular.x = state.at<double>(9);
-  pose_data.velocity.angular.y = state.at<double>(10);
-  pose_data.velocity.angular.z = state.at<double>(11);
-  //
-  //    // Acceleration
-  //    pose_data.acceleration.linear.x = state.at<double>(6);
-  //    pose_data.acceleration.linear.y = state.at<double>(7);
-  //    pose_data.acceleration.linear.z = state.at<double>(8);
-  //    pose_data.acceleration.angular.x = state.at<double>(15);
-  //    pose_data.acceleration.angular.y = state.at<double>(16);
-  //    pose_data.acceleration.angular.z = state.at<double>(17);
-  //
-  //    // Covariances
-  //    pose_data.processNoiseCov = kf_.processNoiseCov;
-  //    pose_data.measurementNoiseCov = kf_.measurementNoiseCov;
-  //    pose_data.errorCovPost = kf_.errorCovPost;
-}
-
-geometry_msgs::Vector3 PoseKalmanFilter::quat2rot(const geometry_msgs::Quaternion &quaternion)
-{
-  tf::Quaternion tf_quaternion;
-  tf::quaternionMsgToTF(quaternion, tf_quaternion);
-
-  // the tf::Quaternion has a method to acess roll pitch and yaw
-  double roll, pitch, yaw;
-  tf::Matrix3x3(tf_quaternion).getRPY(roll, pitch, yaw);
-
-  // the found angles are written in a geometry_msgs::Vector3
-  geometry_msgs::Vector3 rpy;
-  rpy.x = roll;
-  rpy.y = pitch;
-  rpy.z = yaw;
-
-  return rpy;
-}
-
-geometry_msgs::Quaternion PoseKalmanFilter::rot2quat(const geometry_msgs::Vector3 rpy)
-{
-  // translate roll, pitch and yaw into a Quaternion
-  tf::Quaternion tf_quaternion;
-  tf_quaternion.setRPY(rpy.x, rpy.y, rpy.z);
-  geometry_msgs::Quaternion quaternion;
-  tf::quaternionTFToMsg(tf_quaternion, quaternion);
-  return quaternion;
+  ROS_INFO("Estimated position: %f %f %f", pose_data.position.x, pose_data.position.y, pose_data.position.z);
+  ROS_INFO("Estimated roll-pitch-yaw: %f %f %f", pose_data.orientation.x, pose_data.orientation.y, pose_data.orientation.z);
 }

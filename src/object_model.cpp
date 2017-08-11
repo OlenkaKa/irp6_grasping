@@ -6,7 +6,7 @@
 
 using namespace irp6_grasping;
 
-ObjectModel::ObjectModel()
+ObjectModel::ObjectModel() : initialized_(false)
 {
   bounding_mesh_.vertices.clear();
   bounding_mesh_.triangles.clear();
@@ -27,6 +27,16 @@ void ObjectModel::setId(const std::string &id)
 const std::string &ObjectModel::getId() const
 {
   return id_;
+}
+
+void ObjectModel::setInitialized(bool value)
+{
+  initialized_ = value;
+}
+
+bool ObjectModel::isInitialized() const
+{
+  return initialized_;
 }
 
 void ObjectModel::addData(object_recognition_msgs::RecognizedObject &object) const

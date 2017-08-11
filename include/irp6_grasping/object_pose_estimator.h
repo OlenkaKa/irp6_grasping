@@ -42,9 +42,10 @@ private:
 
     ros::Time last_update_;
     double confidence_;
-    geometry_msgs::Pose pose_;
+    PoseData pose_data_;
     PoseKalmanFilter *kalman_;
     cv::Mat measurements_;
+    mutable std::mutex mutex_;
   };
 
   std::pair<int, SingleViewPoseEstimator*> findBestEstimationView() const;

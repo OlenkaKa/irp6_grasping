@@ -17,14 +17,17 @@ public:
   ObjectModel();
   void setBoundingMesh(const shape_msgs::Mesh &bounding_mesh);
   void setId(const std::string &id);
+  void setInitialized(bool initialized);
 
   const std::string &getId() const;
+  bool isInitialized() const;
 
   void addData(object_recognition_msgs::RecognizedObject &object) const;
 
 private:
   std::string id_;
   shape_msgs::Mesh bounding_mesh_;
+  bool initialized_;
 };
 }  // irp6_grasping
 

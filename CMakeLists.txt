@@ -84,8 +84,8 @@ catkin_python_setup()
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES grasping
+  INCLUDE_DIRS include
+  LIBRARIES irp6_grasping
 #  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
 )
@@ -98,23 +98,23 @@ catkin_package(
 ## Your package locations should be listed before other locations
 #include_directories(include ${catkin_INCLUDE_DIRS})
 include_directories(include
-   ${catkin_INCLUDE_DIRS}
-   ${OpenCV_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
-# add_library(grasping
-#   src/${PROJECT_NAME}/grasping.cpp
-# )
+add_library(irp6_grasping
+  src/object_marker_publisher.cpp
+  src/object_model.cpp
+  src/object_pose_estimator.cpp
+  src/pose_kalman_filter.cpp
+  src/result_file_writer.cpp
+  src/transform_util.cpp
+)
 
 ## Declare a cpp executable
 add_executable(pose_estimation
    src/pose_estimation_node.cpp
-   src/object_marker_publisher.cpp
-   src/object_model.cpp
-   src/object_pose_estimator.cpp
-   src/pose_kalman_filter.cpp
-   src/result_file_writer.cpp
 )
 
 ## Add cmake tobject_recognition_msgsarget dependencies of the executable/library
@@ -122,13 +122,17 @@ add_executable(pose_estimation
 #add_dependencies(pose_estimation irp6_grasping_msgs_gencpp)
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(pose_estimation
-   ${catkin_LIBRARIES}
-   ${object_recognition_msgs_LIBRARIES}
-   ${OpenCV_LIBRARIES}
+target_link_libraries(irp6_grasping
+  ${catkin_LIBRARIES}
+  ${object_recognition_msgs_LIBRARIES}
+  ${OpenCV_LIBRARIES}
 )
 
-# Others
+target_link_libraries(pose_estimation
+  irp6_grasping
+)
+
+## Others
 add_definitions("-std=c++11")
 
 #############

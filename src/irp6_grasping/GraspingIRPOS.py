@@ -10,6 +10,8 @@ import tf_conversions.posemath as posemath
 
 from collections import namedtuple
 from WatchingIRPOS import WatchingIRPOS
+# TODO better import
+from irpos import *
 
 
 def _print_main_message(message):
@@ -62,15 +64,9 @@ class GraspingIRPOS(WatchingIRPOS):
         for idx, side_pose in enumerate(object_side_poses):
             self._broadcast_pose(side_pose, object_info.type.key, object_info.header.frame_id + str(idx))
 
-        # Chwytak ustawiony 2cm poniżej górnej ścianki
-        grasp_pose = self._select_highest_pose(object_side_poses) * PyKDL.Frame(
+        pregrasp_pose = self._select_highest_pose(object_side_poses) * PyKDL.Frame(
             PyKDL.Rotation.RPY(0, 0, 0),
-            PyKDL.Vector(0, 0, 0.03))
-
-        # Chwytak ustawiony 5cm powyżej pozycji chwytu obiektu
-        pregrasp_pose = grasp_pose * PyKDL.Frame(
-            PyKDL.Rotation.RPY(0, 0, 0),
-            PyKDL.Vector(0, 0, -0.05))
+            PyKDL.Vector(0, 0, -0.04))
 
         _print_message('Move to pregrasp pose')
         WatchingIRPOS.move_to_cartesian_pose(self, 20.0, posemath.toMsg(pregrasp_pose))
@@ -79,7 +75,7 @@ class GraspingIRPOS(WatchingIRPOS):
         WatchingIRPOS.tfg_to_joint_position(self, 0.09, 3.0)
 
         _print_message('Move to grasp pose')
-        WatchingIRPOS.move_to_cartesian_pose(self, 3.0, posemath.toMsg(grasp_pose))
+        WatchingIRPOS.move_rel_to_cartesian_pose_with_contact(self, 3.0, Pose(Point(0, 0, 0.08), Quaternion(0, 0, 0, 1)), Wrench(Vector3(0.0, 0.0, 5.0), Vector3(0.0, 0.0, 0.0)))
 
         _print_message('Close gripper')
         WatchingIRPOS.tfg_to_joint_position_with_contact(self, 0.053)

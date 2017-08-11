@@ -11,11 +11,11 @@
 #include <irp6_grasping_msgs/GetRecognizedObjectPose.h>
 #include <irp6_grasping_msgs/GetRecognizedObjectsList.h>
 
+#include "object_maker_publisher.h"
 #include "object_model.h"
 #include "object_pose_estimator.h"
 #include "pose_kalman_filter.h"
 #include "result_file_writer.h"
-#include "object_maker_publisher.h"
 
 namespace irp6_grasping
 {
@@ -50,12 +50,6 @@ private:
   bool returnRecognizedObjectsListServiceCallback(irp6_grasping_msgs::GetRecognizedObjectsList::Request &request,
                                                   irp6_grasping_msgs::GetRecognizedObjectsList::Response &response);
 
-  /// Function transforms pose from one to another coordinate frame.
-  static geometry_msgs::Pose transformPose(const geometry_msgs::Pose &start_pose, const tf::StampedTransform &end_tf);
-
-  /// Function transforms point from one to another coordinate frame.
-  static geometry_msgs::Point transformPoint(const geometry_msgs::Point &point, const tf::Transform tf);
-
   /// Variables
   int view_id_;
 
@@ -71,6 +65,9 @@ private:
 
   /// Result file writer
   ResultFileWriter *result_writer_;
+
+  /// Recognized object input result file writer
+  ResultFileWriter *input_writer_;
 
   ObjectModel object_model_;
   ObjectPoseEstimator *object_pose_estimator_;

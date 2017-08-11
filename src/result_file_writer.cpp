@@ -25,12 +25,12 @@ ResultFileWriter::ResultFileWriter(const string &id, const string &dir_name)
   file.close();
 }
 
-void ResultFileWriter::writePoseData(const PoseData &data)
+void ResultFileWriter::writePoseData(const ros::Time &time_stamp, const PoseData &data) const
 {
   ofstream file;
   file.open(file_name_.c_str(), ios::app);
   file.setf(ios::fixed, ios::floatfield);
-  file << ros::Time::now().toSec() << ','
+  file << time_stamp.toSec() << ','
        << data.position.x << ',' << data.position.y << ',' << data.position.z << ','
        << data.orientation.x << ',' << data.orientation.y << ',' << data.orientation.z << ','
        << data.velocity.linear.x << ',' << data.velocity.linear.y << ',' << data.velocity.linear.z << ','

@@ -14,7 +14,7 @@ class ResultFileWriter
 {
 public:
   ResultFileWriter(const std::string &id, const std::string &dir_name);
-  void writePoseData(const PoseData &data);
+  void writePoseData(const ros::Time &time_stamp, const PoseData &data) const;
 
 private:
   std::string file_name_;
