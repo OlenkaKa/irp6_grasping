@@ -97,8 +97,8 @@ class WatchingIRPOS(IRPOS):
         optoforce1_topic = '/optoforce1/force0'
         optoforce2_topic = '/optoforce2/force0'
 
-        optoforce1_data = OptoforceData(-30, 16, rospy.wait_for_message(optoforce1_topic, Vector3Stamped))
-        optoforce2_data = OptoforceData(90, 16, rospy.wait_for_message(optoforce2_topic, Vector3Stamped))
+        optoforce1_data = OptoforceData(-10, 16, rospy.wait_for_message(optoforce1_topic, Vector3Stamped))
+        optoforce2_data = OptoforceData(20, 16, rospy.wait_for_message(optoforce2_topic, Vector3Stamped))
 
         optoforce1_sub = rospy.Subscriber(optoforce1_topic, Vector3Stamped, optoforce1_data.check_if_contact)
         optoforce2_sub = rospy.Subscriber(optoforce2_topic, Vector3Stamped, optoforce2_data.check_if_contact)
